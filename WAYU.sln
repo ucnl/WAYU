@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WAYU", "WAYU\WAYU.csproj", "{E2C3B6A3-0AEE-48BF-9239-B94BCC460016}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E2C3B6A3-0AEE-48BF-9239-B94BCC460016}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E2C3B6A3-0AEE-48BF-9239-B94BCC460016}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E2C3B6A3-0AEE-48BF-9239-B94BCC460016}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E2C3B6A3-0AEE-48BF-9239-B94BCC460016}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
