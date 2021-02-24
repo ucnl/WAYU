@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -20,7 +20,8 @@ using System.Runtime.InteropServices;
                                "https://github.com/ucnl/UCNLNMEA\n" +
                                "https://github.com/ucnl/UCNLKML\n" +
                                "https://github.com/ucnl/UCNLDrivers\n" +
-                               "https://github.com/ucnl/UCNLUI"
+                               "https://github.com/ucnl/UCNLUI\n" +
+                               "https://github.com/ucnl/uOSM"
                                )]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Underwater communication & navigation laboratory, LLC")]
