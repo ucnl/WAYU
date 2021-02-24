@@ -59,12 +59,14 @@
     <Reference Include="UCNLUI">
       <HintPath>..\..\..\UCNLLibs\UCNLUI\UCNLUI\bin\Release\UCNLUI.dll</HintPath>
     </Reference>
+    <Reference Include="uOSM">
+      <HintPath>..\..\..\UCNLLibs\uOSM\uOSM\bin\Release\uOSM.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="APL\APLBaseProcessor.cs" />
     <Compile Include="APL\APLEmulator.cs" />
     <Compile Include="APL\APLLBLCore.cs" />
-    <Compile Include="APL\TrackFilter.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>

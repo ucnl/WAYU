@@ -47,6 +47,8 @@ namespace WAYU
 
         public bool IsEmuEnabled;
 
+        public string[] TileServers;
+
         #endregion
 
         #region Methods
@@ -80,10 +82,17 @@ namespace WAYU
 
             TrackPointsToShow = 64;
 
-            CourseEstimatorFIFOSize = 8;
+            CourseEstimatorFIFOSize = 16;
             TrackFilterFIFOSize = 4;
 
             IsEmuEnabled = false;
+
+            TileServers = new string[]
+            {
+                "https://a.tile.openstreetmap.org",
+                "https://b.tile.openstreetmap.org",
+                "https://c.tile.openstreetmap.org"
+            };
         }
 
         #endregion

@@ -13,6 +13,7 @@ using UCNLKML;
 using UCNLNav;
 using UCNLNMEA;
 using UCNLUI.Dialogs;
+using uOSM;
 using WAYU.APL;
 
 namespace WAYU
@@ -20,6 +21,8 @@ namespace WAYU
     public partial class MainForm : Form
     {
         #region Properties
+
+        uOSMTileProvider tProvider;
 
         APLEmulator aplEmu;
         APLLBLCore aplCore;
@@ -31,6 +34,7 @@ namespace WAYU
         string logPath;
         string logFileName;
         string snapshotsPath;
+        string tileDBPath;
 
         Dictionary<string, List<GeoPoint3DETm>> tracks;
 
@@ -52,6 +56,26 @@ namespace WAYU
         }
 
         bool isAutoScreenshot = false;
+
+        Dictionary<TBAQuality, Color> tbaTextColors = new Dictionary<TBAQuality, Color>()
+        {
+            { TBAQuality.Good, Color.Green },
+            { TBAQuality.Fair, Color.DarkGoldenrod },
+            { TBAQuality.Poor, Color.Orange },
+            { TBAQuality.Out_of_base, Color.Red },
+            { TBAQuality.Invalid, Color.Black }
+        };
+
+        Dictionary<DOPState, Color> dopTextColors = new Dictionary<DOPState, Color>()
+        {
+            { DOPState.Ideal, Color.LimeGreen },
+            { DOPState.Excellent, Color.Green },
+            { DOPState.Good, Color.Olive },
+            { DOPState.Moderate, Color.DarkGoldenrod },
+            { DOPState.Fair, Color.Orange },
+            { DOPState.Poor, Color.Red },
+            { DOPState.Invalid, Color.Black }
+        };
 
         #endregion
 
@@ -75,6 +99,7 @@ namespace WAYU
             logPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "LOG");
             logFileName = StrUtils.GetTimeDirTreeFileName(startTime, Application.ExecutablePath, "LOG", "log", true);
             snapshotsPath = StrUtils.GetTimeDirTree(startTime, Application.ExecutablePath, "SNAPSHOTS", false);
+            tileDBPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "Cache\\Tiles\\");
 
             #endregion
 
@@ -119,41 +144,47 @@ namespace WAYU
             z_track_keys.Add("Marked");
             z_track_keys.Add("WAYU (FLT)+Marked");
             
-            geoPlot.AddTrack("WAYU (RAW)", Color.Yellow, 1, 2, 64, true);
-            geoPlot.AddTrack("WAYU (FLT)", Color.Lime, 1, 2, settingsProvider.Data.TrackPointsToShow, true);
+            geoPlot.InitTrack("WAYU (RAW)", 64, Color.Yellow, 1, 4, false, Color.Yellow, 1, 200);
+            geoPlot.InitTrack("WAYU (FLT)", settingsProvider.Data.TrackPointsToShow, Color.Red, 1, 4, true, Color.Red, 1, 200);
+
 
             if (settingsProvider.Data.IsUseAUX1)
             {
+                geoPlot.InitTrack("AUX1", 64, Color.Blue, 1, 4, true, Color.Blue, 1, 200);
                 z_track_keys.Add("AUX1");
                 z_track_keys.Add("WAYU (FLT)+AUX1");
                 z_track_keys.Add("WAYU (FLT)+AUX1+Marked");
-                geoPlot.AddTrack("AUX1", Color.Cyan, 1, 2, 64, true);
             }
 
             if (settingsProvider.Data.IsUseAUX2)
             {
+                geoPlot.InitTrack("AUX2", 64, Color.Blue, 1, 4, true, Color.Violet, 1, 200);
                 z_track_keys.Add("AUX2");
                 z_track_keys.Add("WAYU (FLT)+AUX2");
                 z_track_keys.Add("WAYU (FLT)+AUX2+Marked");
-                geoPlot.AddTrack("AUX2", Color.White, 1, 2, 64, true);
             }
-
-            geoPlot.AddTrack("Marked", Color.Magenta, 4, 6, 256, false);
 
             z_track_keys.Add("BASE 1");
             z_track_keys.Add("BASE 2");
             z_track_keys.Add("BASE 3");
             z_track_keys.Add("BASE 4");
+            z_track_keys.Add("WAYU (FLT)+WAYU (RAW)");
 
-            geoPlot.AddTrack("BASE 1", Color.Salmon, 4, 6, 4, false);
-            geoPlot.AddTrack("BASE 2", Color.Gold, 4, 6, 4, false);
-            geoPlot.AddTrack("BASE 3", Color.MediumSpringGreen, 4, 6, 4, false);
-            geoPlot.AddTrack("BASE 4", Color.SkyBlue, 4, 6, 4, false);
+            geoPlot.InitTrack("Marked", 256, Color.Black, 4, 4, false, Color.Black, 1, 200);
+
+            geoPlot.InitTrack("BASE 1", 4, Color.DarkRed, 2, 4, false, Color.Salmon, 1, 200);
+            geoPlot.InitTrack("BASE 2", 4, Color.DarkOrange, 2, 4, false, Color.Gold, 1, 200);
+            geoPlot.InitTrack("BASE 3", 4, Color.Green, 2, 4, false, Color.MediumSpringGreen, 1, 200);
+            geoPlot.InitTrack("BASE 4", 4, Color.Purple, 2, 4, false, Color.SkyBlue, 1, 200);
+
 
             fitTracksCbx.Items.Clear();
             fitTracksCbx.Items.AddRange(z_track_keys.ToArray());
             fitTracksCbx.SelectedIndex = 0;
-            
+
+            geoPlot.SetTracksVisibility(true);
+            geoPlot.TextBackgroundColor = Color.FromArgb(127, Color.White);
+
             #endregion
 
             #region custom items
@@ -249,7 +280,7 @@ namespace WAYU
                     if (!string.IsNullOrEmpty(tString))
                         sb.AppendFormat("TARGET:\r\n{0}", tString);
 
-                    geoPlot.LeftUpperCornerText = sb.ToString();
+                    geoPlot.LeftUpperText = sb.ToString();
                     geoPlot.Invalidate();
                 }
                 else
@@ -262,9 +293,15 @@ namespace WAYU
                     if (!string.IsNullOrEmpty(tString))
                         sb.AppendFormat("TARGET:\r\n{0}", tString);
 
-                    geoPlot.LeftUpperCornerText = sb.ToString();
+                    geoPlot.LeftUpperText = sb.ToString();
                     geoPlot.Invalidate();
-                }                
+                }
+
+                InvokeSetText(secondaryToolStrip, tbaLbl, aplCore.tbaQuality.ToString());
+                InvokeSetColorMode(secondaryToolStrip, tbaLbl, tbaTextColors[aplCore.tbaQuality.Value]);
+
+                InvokeSetText(secondaryToolStrip, hdopLbl, aplCore.dopState.ToString());
+                InvokeSetColorMode(secondaryToolStrip, hdopLbl, dopTextColors[aplCore.dopState.Value]);
             };
 
             #endregion            
@@ -279,6 +316,13 @@ namespace WAYU
                         aplCore.Emulate(e.Message);
                     };
             }
+
+            #endregion
+
+            #region tProvider
+
+            tProvider = new uOSMTileProvider(256, 19, new Size(256, 256), tileDBPath, settingsProvider.Data.TileServers);
+            geoPlot.ConnectTileProvider(tProvider);
 
             #endregion
         }
@@ -326,12 +370,12 @@ namespace WAYU
             if (geoPlot.InvokeRequired)
                 geoPlot.Invoke((MethodInvoker)delegate 
                 { 
-                    geoPlot.AppendHistoryLine(line);
+                    geoPlot.AppendHistory(line);
                     geoPlot.Invalidate();
                 });
             else
             {
-                geoPlot.AppendHistoryLine(line);
+                geoPlot.AppendHistory(line);
                 geoPlot.Invalidate();
             }
         }
@@ -448,6 +492,22 @@ namespace WAYU
             }
         }
 
+        private void InvokeSetText(ToolStrip strip, ToolStripLabel lbl, string text)
+        {
+            if (strip.InvokeRequired)
+                strip.Invoke((MethodInvoker)delegate { lbl.Text = text; });
+            else
+                lbl.Text = text;
+        }
+
+        private void InvokeSetColorMode(ToolStrip strip, ToolStripLabel lbl, Color foreColor)
+        {
+            if (strip.InvokeRequired)
+                strip.Invoke((MethodInvoker)delegate { lbl.ForeColor = foreColor; });
+            else
+                lbl.ForeColor = foreColor;
+        }
+
         private void InvokeSetEnabledState(ToolStrip strip, ToolStripItem item, bool enabled)
         {
             if (strip.InvokeRequired)
@@ -479,9 +539,9 @@ namespace WAYU
                 geoPlot.Invoke((MethodInvoker)delegate
                 {
                     if (!double.IsNaN(e.Course_deg))
-                        geoPlot.UpdateTrack(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude, e.Course_deg);
+                        geoPlot.AddPoint(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude, e.Course_deg);
                     else
-                        geoPlot.UpdateTrack(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude);
+                        geoPlot.AddPoint(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude);
 
                     if (isInvalidate)
                         geoPlot.Invalidate();
@@ -490,9 +550,9 @@ namespace WAYU
             else
             {
                 if (!double.IsNaN(e.Course_deg))
-                    geoPlot.UpdateTrack(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude, e.Course_deg);
+                    geoPlot.AddPoint(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude, e.Course_deg);
                 else
-                    geoPlot.UpdateTrack(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude);
+                    geoPlot.AddPoint(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude);
 
                 if (isInvalidate)
                     geoPlot.Invalidate();
@@ -733,16 +793,21 @@ namespace WAYU
             var ztrackkey = fitTracksCbx.SelectedItem.ToString();
             if (ztrackkey == "ALL")
             {
-                geoPlot.FitByDictionary = false;
+                geoPlot.SetTracksVisibility(true);
             }
             else
             {
                 var splits = ztrackkey.Split(new char[] { '+' });
-                geoPlot.TracksToFitSet(splits);
-                geoPlot.FitByDictionary = true;
+                geoPlot.SetTracksVisibility(splits, true);
             }
 
             geoPlot.Invalidate();
+        }
+
+        private void isHistoryLinesVisibleBtn_Click(object sender, EventArgs e)
+        {
+            geoPlot.HistoryVisible = !geoPlot.HistoryVisible;
+            isHistoryLinesVisibleBtn.Checked = geoPlot.HistoryVisible;
         }
 
         #endregion
@@ -800,7 +865,7 @@ namespace WAYU
             logger.Flush();
         }        
 
-        #endregion                                
+        #endregion                                        
         
         #endregion
 
