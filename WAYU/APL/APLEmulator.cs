@@ -520,6 +520,7 @@ namespace WAYU.APL
                             data[idx][2],
                             data[idx][3],
                             data[idx][4],
+                            1,
                             data[idx][5]
                         });                        
                         EmulatorOutputEvent.Rise(this, new NewNMEAMessageEventArgs(msg));

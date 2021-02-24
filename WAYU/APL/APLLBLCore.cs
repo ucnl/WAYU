@@ -21,15 +21,6 @@ namespace WAYU.APL
         BASE_INVALID
     }
 
-    public enum TBA_Qualities
-    {
-        GOOD,
-        FAIR,
-        BAD,
-        OFFBASE,
-        INVALID
-    }
-
     #endregion
 
     #region Custom EventArgs
@@ -108,12 +99,10 @@ namespace WAYU.APL
         Dictionary<int, int> portTSByHash;
         Dictionary<int, bool> portTimoutFlags;
 
-
         TrackFilter trkFilter;
-
         PCore2D<GeoPoint3DT> pCore;
         APLBaseProcessor basesProcessor;
-
+        
         delegate T NullChecker<T>(object parameter);
         delegate object NullCheckerR<T>(T parameter);
         NullChecker<int> intNullChecker = (x => x == null ? -1 : (int)x);
@@ -176,6 +165,8 @@ namespace WAYU.APL
 
         Dictionary<BaseIDs, AgingValue<bool>> BaseBatStates;
 
+        public AgingValue<DOPState> dopState;
+        public AgingValue<TBAQuality> tbaQuality;
 
         #endregion
 
@@ -210,6 +201,9 @@ namespace WAYU.APL
             BaseBatStates.Add(BaseIDs.BASE_2, new AgingValue<bool>(30, 60, x => !x ? string.Format("{0} BAT LOW!", BaseIDs.BASE_1) : string.Empty));
             BaseBatStates.Add(BaseIDs.BASE_3, new AgingValue<bool>(30, 60, x => !x ? string.Format("{0} BAT LOW!", BaseIDs.BASE_1) : string.Empty));
             BaseBatStates.Add(BaseIDs.BASE_4, new AgingValue<bool>(30, 60, x => !x ? string.Format("{0} BAT LOW!", BaseIDs.BASE_1) : string.Empty));
+
+            dopState = new AgingValue<DOPState>(4, 10, x => x.ToString().Replace('_', ' ').ToUpperInvariant());
+            tbaQuality = new AgingValue<TBAQuality>(4, 10, x => x.ToString().Replace('_', ' ').ToUpperInvariant());
 
             #endregion
 
@@ -248,6 +242,12 @@ namespace WAYU.APL
                     }
 
                     SystemUpdate();
+                };
+
+            pCore.BaseQualityUpdatedHandler += (o, e) =>
+                {
+                    dopState.Value = e.DopState;
+                    tbaQuality.Value = e.TBAState;
                 };
 
             #endregion
