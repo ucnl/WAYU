@@ -26,7 +26,6 @@ namespace WAYU.APL
 
         double prevTOA = double.NaN;
 
-
         #endregion
 
         #region Constructor
@@ -60,7 +59,7 @@ namespace WAYU.APL
 
         public GeoPoint3DT[] ProcessBase(BaseIDs baseID, double lat, double lon, double dpt, double toa)
         {
-            GeoPoint3DT[] result = null;
+            GeoPoint3DT[] result = null;            
 
             if (!double.IsNaN(toa))
             {

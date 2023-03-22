@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO.Ports;
+using System.Net;
 using System.Text;
 using UCNLDrivers;
 using UCNLNav;
@@ -92,6 +93,9 @@ namespace WAYU.APL
         NMEAMultipleListener nmeaListener;
         SerialPort outPort;
         PrecisionTimer timer;
+        UDPTranslator udpTranslator;
+        bool isUseUDPOutput = false;
+
 
         Dictionary<int, string> portDescrByHash;
         Dictionary<int, string> portNameByHash;
@@ -164,9 +168,12 @@ namespace WAYU.APL
         AgingValue<double> reverseAzimuthToTarget;
 
         Dictionary<BaseIDs, AgingValue<bool>> BaseBatStates;
+        Dictionary<BaseIDs, AgingValue<GeoPoint3D>> BaseLocations;
 
         public AgingValue<DOPState> dopState;
         public AgingValue<TBAQuality> tbaQuality;
+
+        BaseIDs[] BIDs = new BaseIDs[] { BaseIDs.BASE_1, BaseIDs.BASE_2, BaseIDs.BASE_3, BaseIDs.BASE_4 };
 
         #endregion
 
@@ -201,6 +208,12 @@ namespace WAYU.APL
             BaseBatStates.Add(BaseIDs.BASE_2, new AgingValue<bool>(30, 60, x => !x ? string.Format("{0} BAT LOW!", BaseIDs.BASE_1) : string.Empty));
             BaseBatStates.Add(BaseIDs.BASE_3, new AgingValue<bool>(30, 60, x => !x ? string.Format("{0} BAT LOW!", BaseIDs.BASE_1) : string.Empty));
             BaseBatStates.Add(BaseIDs.BASE_4, new AgingValue<bool>(30, 60, x => !x ? string.Format("{0} BAT LOW!", BaseIDs.BASE_1) : string.Empty));
+
+            BaseLocations = new Dictionary<BaseIDs, AgingValue<GeoPoint3D>>();
+            BaseLocations.Add(BaseIDs.BASE_1, new AgingValue<GeoPoint3D>(3, 60, x => x.ToString()));
+            BaseLocations.Add(BaseIDs.BASE_2, new AgingValue<GeoPoint3D>(3, 60, x => x.ToString()));
+            BaseLocations.Add(BaseIDs.BASE_3, new AgingValue<GeoPoint3D>(3, 60, x => x.ToString()));
+            BaseLocations.Add(BaseIDs.BASE_4, new AgingValue<GeoPoint3D>(3, 60, x => x.ToString()));            
 
             dopState = new AgingValue<DOPState>(4, 10, x => x.ToString().Replace('_', ' ').ToUpperInvariant());
             tbaQuality = new AgingValue<TBAQuality>(4, 10, x => x.ToString().Replace('_', ' ').ToUpperInvariant());
@@ -239,6 +252,13 @@ namespace WAYU.APL
                     {
                         WriteOutData(targetFixFlt.Value.Latitude, targetFixFlt.Value.Longitude, 0.0, targetFix.Value.RadialError,
                             targetCourse.Value, targetFix.Value.RadialError <= pCore.RadialErrorThreshold);
+                    }
+
+                    if (isUseUDPOutput)
+                    {
+                        StringBuilder sb = new StringBuilder();
+
+                        udpTranslator.Send(sb.ToString());
                     }
 
                     SystemUpdate();
@@ -375,6 +395,122 @@ namespace WAYU.APL
 
         #region Private
 
+        public string NavDataSerialize()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.Append("WAYU,1,");
+
+            if (primaryGNSSFixRMC.IsInitialized)
+            {
+                sb.AppendFormat(CultureInfo.InvariantCulture,
+                    "{0:F06},{1:F01},{2:F01},",
+                    primaryGNSSFixRMC.Value.Latitude,
+                    primaryGNSSFixRMC.Value.Longitude,
+                    primaryGNSSFixRMC.Age.TotalSeconds);
+            }
+            else
+            {
+                sb.Append(",,,");
+            }
+
+            foreach (var bid in BIDs)
+            {
+                if ((BaseLocations[bid].IsInitialized) &&
+                    (BaseBatStates[bid].IsInitialized))
+                {
+                    sb.AppendFormat(CultureInfo.InvariantCulture,
+                        "{0:F06},{1:F06},{2},",
+                        BaseLocations[bid].Value.Latitude,
+                        BaseLocations[bid].Value.Longitude,
+                        BaseBatStates[bid].Value);
+                }
+                else
+                {
+                    sb.Append(",,,");
+                }
+            }
+
+            if (targetFixFlt.IsInitialized)
+            {
+                sb.AppendFormat(CultureInfo.InvariantCulture,
+                        "{0:F06},{1:F06},{2:F01},{3:F01},{4:F01},",
+                        targetFixFlt.Value.Latitude,
+                        targetFixFlt.Value.Longitude,
+                        targetFixFlt.Value.Depth,
+                        targetFixFlt.Value.RadialError,
+                        targetFixFlt.Age.TotalSeconds);
+            }
+            else
+            {
+                sb.Append(",,,,,");
+            }
+
+            if (targetCourse.IsInitialized)
+                sb.AppendFormat(CultureInfo.InvariantCulture,
+                    "{0:F01},", targetCourse.Value);
+            else
+                sb.Append(",");
+
+            if (distanceToTarget.IsInitialized)
+                sb.AppendFormat(CultureInfo.InvariantCulture,
+                    "{0:F01},", distanceToTarget.Value);
+            else
+                sb.Append(",");
+
+            if (forwardAzimuthToTarget.IsInitialized)
+                sb.AppendFormat(CultureInfo.InvariantCulture,
+                    "{0:F01},", forwardAzimuthToTarget.Value);
+            else
+                sb.Append(",");
+
+            if (reverseAzimuthToTarget.IsInitialized)
+                sb.AppendFormat(CultureInfo.InvariantCulture,
+                    "{0:F01},{1:F01},",
+                    reverseAzimuthToTarget.Value,
+                    reverseAzimuthToTarget.Age.TotalSeconds);
+            else
+                sb.Append(",,");
+
+            if (dopState.IsInitialized)
+                sb.AppendFormat(CultureInfo.InvariantCulture,
+                    "{0},",
+                    dopState.Value);
+            else
+                sb.Append(",");
+
+            if (tbaQuality.IsInitialized)
+                sb.AppendFormat(CultureInfo.InvariantCulture,
+                    "{0},{1:F01}",
+                    tbaQuality.Value,
+                    tbaQuality.Age.TotalSeconds);
+            else
+                sb.Append(",");
+
+            sb.Append("\r\n");
+
+            /*
+            
+            pGNSSLat, pGNSSLon, pGNSSFixAge,            
+
+            b1lat,b1lon,b1bat_state,
+            b2lat,b2lon,b2bat_state,
+            b3lat,b3lon,b3bat_state,
+            b4lat,b4lon,b4bat_state,
+
+            tLat,tLon,tDpt,tRErr,tFixAge,
+
+            tCourseEstimated,
+            tDistance,
+            tFwdAzimuth,
+            tRevAzimuth,
+
+            DOPState,TBAState,DOPTBAAgeSec,
+            */
+
+            return sb.ToString();
+        }
+
         private void WriteOutData(double bLat, double bLon, double bDpt, double rErr, double course, bool isValid)
         {
             string latCardinal, lonCardinal;
@@ -458,6 +594,18 @@ namespace WAYU.APL
         {
             systemUpdateTS = 0;
             SystemUpdateHandler.Rise(this, new EventArgs());
+
+            if (isUseUDPOutput)
+            {
+                try
+                {
+                    udpTranslator.Send(NavDataSerialize());
+                }
+                catch (Exception ex)
+                {
+                    InfoEventHandler.Rise(this, new LogEventArgs(LogLineType.ERROR, ex));
+                }
+            }
         }
 
         private DateTime GetTimeStamp()
@@ -548,6 +696,16 @@ namespace WAYU.APL
                         new GeoPoint3DETm(bLat, bLon, bDpt, 0.0, GetTimeStamp()), double.NaN));
 
                 BaseBatStates[baseID].Value = bBat;
+
+                if (BaseLocations[baseID].Value == null)
+                    BaseLocations[baseID].Value = new GeoPoint3D(bLat, bLon, bDpt);
+                else
+                {
+                    BaseLocations[baseID].Value.Latitude = bLat;
+                    BaseLocations[baseID].Value.Longitude = bLon;
+                    BaseLocations[baseID].Value.Depth = bDpt;
+                    BaseLocations[baseID].ForceUpdate();
+                }
 
                 var bases = basesProcessor.ProcessBase(baseID, bLat, bLon, bDpt, bTOA);
 
@@ -641,6 +799,22 @@ namespace WAYU.APL
             outPort.ErrorReceived += (o, e) => InfoEventHandler.Rise(o, 
                 new LogEventArgs(LogLineType.ERROR,
                     string.Format("{0} ({1}) >> {2}", outPort.PortName, portDescrByHash[outPort.PortName.GetHashCode()], e.EventType.ToString())));
+        }
+
+        public void InitOutputUDP(int port, IPAddress address)
+        {
+            try
+            {
+                udpTranslator = new UDPTranslator(port, address);
+                isUseUDPOutput = true;
+
+                InfoEventHandler.Rise(this, new LogEventArgs(LogLineType.INFO,
+                    string.Format("Initalizing output via UDP on {0}:{1}", address, port)));
+            }
+            catch (Exception ex)
+            {
+                InfoEventHandler.Rise(this, new LogEventArgs(LogLineType.ERROR, ex));
+            }
         }
 
         public void Emulate(string nmeaString)
