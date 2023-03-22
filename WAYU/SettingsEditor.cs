@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO.Ports;
+using System.Net;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using UCNLDrivers;
 using UCNLPhysics;
@@ -35,6 +37,10 @@ namespace WAYU
                 value.OutputPortName = outputPortName;
                 value.OutputPortBaudrate = outputPortBaudrate;
 
+                value.IsUseUDPOutput = isUseUDPOutput;
+                value.OutputUDPIPAddress = udpIPAddress;
+                value.OutputUDPPort = udpOutputPort;
+
                 value.IsAutoSoundSpeed = isAutoSoundSpeed;
                 value.WaterTemperatureC = waterTemperatureC;
                 value.SalinityPSU = waterSalinityPSU;
@@ -62,6 +68,11 @@ namespace WAYU
                 isUseOutputPort = value.IsUseOutputPort;
                 outputPortName = value.OutputPortName;
                 outputPortBaudrate = value.OutputPortBaudrate;
+
+                isUseUDPOutput = value.IsUseUDPOutput;
+                udpIPAddress = value.OutputUDPIPAddress;
+                udpOutputPort = value.OutputUDPPort;
+
                 isAutoSoundSpeed = value.IsAutoSoundSpeed;
                 waterTemperatureC = value.WaterTemperatureC;
                 waterSalinityPSU = value.SalinityPSU;
@@ -145,6 +156,23 @@ namespace WAYU
             set { UIUtils.TrySetCbxItem(outputPortBaudrateCbx, value.ToString()); }
         }
 
+        bool isUseUDPOutput
+        {
+            get {  return isUseUDPOutputChb.Checked; }
+            set { isUseUDPOutputChb.Checked = value; }
+        }
+
+        int udpOutputPort
+        {
+            get { return Convert.ToInt32(udpOutputPortEdit.Value); }
+            set { UIUtils.TrySetNEditValue(udpOutputPortEdit, value); }
+        }
+
+        string udpIPAddress
+        {
+            get { return udpOutputIPEdit.Text; }
+            set { udpOutputIPEdit.Text = value; }
+        }
 
         bool isAutoSoundSpeed
         {
@@ -201,6 +229,8 @@ namespace WAYU
         public SettingsEditor()
         {
             InitializeComponent();
+
+            udpOutputIPEdit.ValidatingType = typeof(System.Net.IPAddress);
 
             var portNames = SerialPort.GetPortNames();
             if (portNames.Length > 0)
@@ -291,9 +321,31 @@ namespace WAYU
             }
         }
 
+        private void isUseUDPOutputChb_CheckedChanged(object sender, EventArgs e)
+        {
+            outputUDPGroup.Enabled = isUseUDPOutput;
+            CheckUIValidity();
+        }
+
         #endregion
 
         #region Methods
+
+        public bool IsValidIP(string addr)
+        {
+            string pattern = @"\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b";
+            Regex check = new Regex(pattern);
+            bool valid = false;
+            if (addr == "")
+            {
+                valid = false;
+            }
+            else
+            {
+                valid = check.IsMatch(addr, 0);
+            }
+            return valid;
+        }
 
         private void CheckUIValidity()
         {
@@ -303,7 +355,8 @@ namespace WAYU
                      (!isUseOutputPort || !string.IsNullOrEmpty(outputPortName)) &&
                      (!isUseAUX1 || !string.IsNullOrEmpty(AUX1PortName)) &&
                      (!isUseAUX2 || !string.IsNullOrEmpty(AUX2PortName)) &&                   
-                     (!isUseOutputPort || !string.IsNullOrEmpty(outputPortName));
+                     (!isUseOutputPort || !string.IsNullOrEmpty(outputPortName)) &&
+                     (!isUseUDPOutput || IsValidIP(udpIPAddress));
 
             if (result)
             {
@@ -360,6 +413,11 @@ namespace WAYU
             primaryGNSSSource = AUX_IDs.NONE;
         }
 
-        #endregion               
+        #endregion
+
+        private void udpOutputIPEdit_TextChanged(object sender, EventArgs e)
+        {
+            CheckUIValidity();
+        }
     }
 }

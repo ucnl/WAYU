@@ -32,6 +32,10 @@ namespace WAYU
         public string OutputPortName;
         public BaudRate OutputPortBaudrate;
 
+        public bool IsUseUDPOutput;
+        public string OutputUDPIPAddress;
+        public int OutputUDPPort;
+
         public bool IsAutoSoundSpeed;        
         public double WaterTemperatureC;
         public double SalinityPSU;
@@ -71,6 +75,10 @@ namespace WAYU
             IsUseOutputPort = false;
             OutputPortName = "COM1";
             OutputPortBaudrate = BaudRate.baudRate9600;
+
+            IsUseUDPOutput = false;
+            OutputUDPIPAddress = "255.255.255.255";
+            OutputUDPPort = 28128;
 
             IsAutoSoundSpeed = true;
             WaterTemperatureC = 17;

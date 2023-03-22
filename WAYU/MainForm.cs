@@ -254,6 +254,12 @@ namespace WAYU
                         System.IO.Ports.Handshake.None));
             }
 
+            if (settingsProvider.Data.IsUseUDPOutput)
+            {
+                aplCore.InitOutputUDP(settingsProvider.Data.OutputUDPPort,
+                    System.Net.IPAddress.Parse(settingsProvider.Data.OutputUDPIPAddress));
+            }
+
             aplCore.InfoEventHandler += (o, e) => logger.Write(string.Format("({0}) {1}", e.EventType, e.LogString));
             aplCore.PortStateChangedHandler += (o, e) => InvokeSetStatusStripLblText(mainStatusStrip, portStatesLbl, aplCore.GetPortsStateDescription());            
             aplCore.TrackUpdateHandler += (o, e) =>

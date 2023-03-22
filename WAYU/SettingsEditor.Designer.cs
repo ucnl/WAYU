@@ -50,6 +50,8 @@
             this.aplGIBPortBaudrateCbx = new System.Windows.Forms.ComboBox();
             this.aplGIBPortNameCbx = new System.Windows.Forms.ComboBox();
             this.commonTab = new System.Windows.Forms.TabPage();
+            this.courseEstimatorFifoSizeEdit = new System.Windows.Forms.NumericUpDown();
+            this.label6 = new System.Windows.Forms.Label();
             this.trackPointsToShowEdit = new System.Windows.Forms.NumericUpDown();
             this.label7 = new System.Windows.Forms.Label();
             this.initialSimplexSizeEdit = new System.Windows.Forms.NumericUpDown();
@@ -64,8 +66,10 @@
             this.waterTemperatureEdit = new System.Windows.Forms.NumericUpDown();
             this.label1 = new System.Windows.Forms.Label();
             this.isAutoSoundSpeedChb = new System.Windows.Forms.CheckBox();
-            this.courseEstimatorFifoSizeEdit = new System.Windows.Forms.NumericUpDown();
-            this.label6 = new System.Windows.Forms.Label();
+            this.isUseUDPOutputChb = new System.Windows.Forms.CheckBox();
+            this.outputUDPGroup = new System.Windows.Forms.GroupBox();
+            this.udpOutputIPEdit = new System.Windows.Forms.MaskedTextBox();
+            this.udpOutputPortEdit = new System.Windows.Forms.NumericUpDown();
             this.mainTabControl.SuspendLayout();
             this.connectionTab.SuspendLayout();
             this.pgnssGroup.SuspendLayout();
@@ -74,13 +78,15 @@
             this.aux1Group.SuspendLayout();
             this.aplGIBGoup.SuspendLayout();
             this.commonTab.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.courseEstimatorFifoSizeEdit)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackPointsToShowEdit)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.initialSimplexSizeEdit)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.radialErrorThresholdEdit)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.soundSpeedEdit)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.waterSalinityEdit)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.waterTemperatureEdit)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.courseEstimatorFifoSizeEdit)).BeginInit();
+            this.outputUDPGroup.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.udpOutputPortEdit)).BeginInit();
             this.SuspendLayout();
             // 
             // cancelBtn
@@ -121,6 +127,8 @@
             // 
             // connectionTab
             // 
+            this.connectionTab.Controls.Add(this.isUseUDPOutputChb);
+            this.connectionTab.Controls.Add(this.outputUDPGroup);
             this.connectionTab.Controls.Add(this.isUseOutputChb);
             this.connectionTab.Controls.Add(this.pgnssGroup);
             this.connectionTab.Controls.Add(this.outputGroup);
@@ -334,6 +342,37 @@
             this.commonTab.Text = "COMMON";
             this.commonTab.UseVisualStyleBackColor = true;
             // 
+            // courseEstimatorFifoSizeEdit
+            // 
+            this.courseEstimatorFifoSizeEdit.Location = new System.Drawing.Point(287, 355);
+            this.courseEstimatorFifoSizeEdit.Maximum = new decimal(new int[] {
+            64,
+            0,
+            0,
+            0});
+            this.courseEstimatorFifoSizeEdit.Minimum = new decimal(new int[] {
+            2,
+            0,
+            0,
+            0});
+            this.courseEstimatorFifoSizeEdit.Name = "courseEstimatorFifoSizeEdit";
+            this.courseEstimatorFifoSizeEdit.Size = new System.Drawing.Size(107, 30);
+            this.courseEstimatorFifoSizeEdit.TabIndex = 17;
+            this.courseEstimatorFifoSizeEdit.Value = new decimal(new int[] {
+            8,
+            0,
+            0,
+            0});
+            // 
+            // label6
+            // 
+            this.label6.AutoSize = true;
+            this.label6.Location = new System.Drawing.Point(17, 357);
+            this.label6.Name = "label6";
+            this.label6.Size = new System.Drawing.Size(212, 23);
+            this.label6.TabIndex = 16;
+            this.label6.Text = "Course estimator FIFO size";
+            // 
             // trackPointsToShowEdit
             // 
             this.trackPointsToShowEdit.Location = new System.Drawing.Point(287, 300);
@@ -542,36 +581,61 @@
             this.isAutoSoundSpeedChb.UseVisualStyleBackColor = true;
             this.isAutoSoundSpeedChb.CheckedChanged += new System.EventHandler(this.isAutoSoundSpeedChb_CheckedChanged);
             // 
-            // courseEstimatorFifoSizeEdit
+            // isUseUDPOutputChb
             // 
-            this.courseEstimatorFifoSizeEdit.Location = new System.Drawing.Point(287, 355);
-            this.courseEstimatorFifoSizeEdit.Maximum = new decimal(new int[] {
-            64,
+            this.isUseUDPOutputChb.AutoSize = true;
+            this.isUseUDPOutputChb.Location = new System.Drawing.Point(226, 395);
+            this.isUseUDPOutputChb.Name = "isUseUDPOutputChb";
+            this.isUseUDPOutputChb.Size = new System.Drawing.Size(99, 27);
+            this.isUseUDPOutputChb.TabIndex = 8;
+            this.isUseUDPOutputChb.Text = "Use UDP";
+            this.isUseUDPOutputChb.UseVisualStyleBackColor = true;
+            this.isUseUDPOutputChb.CheckedChanged += new System.EventHandler(this.isUseUDPOutputChb_CheckedChanged);
+            // 
+            // outputUDPGroup
+            // 
+            this.outputUDPGroup.Controls.Add(this.udpOutputPortEdit);
+            this.outputUDPGroup.Controls.Add(this.udpOutputIPEdit);
+            this.outputUDPGroup.Enabled = false;
+            this.outputUDPGroup.Location = new System.Drawing.Point(226, 428);
+            this.outputUDPGroup.Name = "outputUDPGroup";
+            this.outputUDPGroup.Size = new System.Drawing.Size(206, 117);
+            this.outputUDPGroup.TabIndex = 7;
+            this.outputUDPGroup.TabStop = false;
+            this.outputUDPGroup.Text = "IP/Port";
+            // 
+            // udpOutputIPEdit
+            // 
+            this.udpOutputIPEdit.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.udpOutputIPEdit.AsciiOnly = true;
+            this.udpOutputIPEdit.Culture = new System.Globalization.CultureInfo("en-001");
+            this.udpOutputIPEdit.Location = new System.Drawing.Point(7, 29);
+            this.udpOutputIPEdit.Mask = "###.###.###.###";
+            this.udpOutputIPEdit.Name = "udpOutputIPEdit";
+            this.udpOutputIPEdit.Size = new System.Drawing.Size(190, 30);
+            this.udpOutputIPEdit.TabIndex = 2;
+            this.udpOutputIPEdit.Text = "255255255255";
+            this.udpOutputIPEdit.TextChanged += new System.EventHandler(this.udpOutputIPEdit_TextChanged);
+            // 
+            // udpOutputPortEdit
+            // 
+            this.udpOutputPortEdit.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.udpOutputPortEdit.Location = new System.Drawing.Point(7, 65);
+            this.udpOutputPortEdit.Maximum = new decimal(new int[] {
+            65536,
             0,
             0,
             0});
-            this.courseEstimatorFifoSizeEdit.Minimum = new decimal(new int[] {
-            2,
+            this.udpOutputPortEdit.Name = "udpOutputPortEdit";
+            this.udpOutputPortEdit.Size = new System.Drawing.Size(190, 30);
+            this.udpOutputPortEdit.TabIndex = 3;
+            this.udpOutputPortEdit.Value = new decimal(new int[] {
+            28128,
             0,
             0,
             0});
-            this.courseEstimatorFifoSizeEdit.Name = "courseEstimatorFifoSizeEdit";
-            this.courseEstimatorFifoSizeEdit.Size = new System.Drawing.Size(107, 30);
-            this.courseEstimatorFifoSizeEdit.TabIndex = 17;
-            this.courseEstimatorFifoSizeEdit.Value = new decimal(new int[] {
-            8,
-            0,
-            0,
-            0});
-            // 
-            // label6
-            // 
-            this.label6.AutoSize = true;
-            this.label6.Location = new System.Drawing.Point(17, 357);
-            this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(212, 23);
-            this.label6.TabIndex = 16;
-            this.label6.Text = "Course estimator FIFO size";
             // 
             // SettingsEditor
             // 
@@ -595,13 +659,16 @@
             this.aplGIBGoup.ResumeLayout(false);
             this.commonTab.ResumeLayout(false);
             this.commonTab.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.courseEstimatorFifoSizeEdit)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackPointsToShowEdit)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.initialSimplexSizeEdit)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.radialErrorThresholdEdit)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.soundSpeedEdit)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.waterSalinityEdit)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.waterTemperatureEdit)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.courseEstimatorFifoSizeEdit)).EndInit();
+            this.outputUDPGroup.ResumeLayout(false);
+            this.outputUDPGroup.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.udpOutputPortEdit)).EndInit();
             this.ResumeLayout(false);
 
         }
@@ -646,5 +713,9 @@
         private System.Windows.Forms.Label label7;
         private System.Windows.Forms.NumericUpDown courseEstimatorFifoSizeEdit;
         private System.Windows.Forms.Label label6;
+        private System.Windows.Forms.CheckBox isUseUDPOutputChb;
+        private System.Windows.Forms.GroupBox outputUDPGroup;
+        private System.Windows.Forms.NumericUpDown udpOutputPortEdit;
+        private System.Windows.Forms.MaskedTextBox udpOutputIPEdit;
     }
 }
