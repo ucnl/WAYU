@@ -3,55 +3,42 @@ using UCNLDrivers;
 
 namespace WAYU
 {
-    public enum AUX_IDs
-    {
-        AUX1,
-        AUX2,
-        NONE,
-    }
-
     [Serializable]
     public class SettingsContainer : SimpleSettingsContainer
     {
         #region Properties
 
-        public string InPortName;
         public BaudRate InPortBaudrate;
-
-        public bool IsUseAUX1;
-        public string AUX1PortName;
-        public BaudRate AUX1PortBaudrate;
-
-        public bool IsUseAUX2;
-        public string AUX2PortName;
-        public BaudRate AUX2PortBaudrate;
-
-        public AUX_IDs PrimaryGNSSAUXID;
-
-        public bool IsUseOutputPort;
-        public string OutputPortName;
-        public BaudRate OutputPortBaudrate;
+        public bool IsUseAUXGNSS;
+        public BaudRate AUXGNSSBaudrate;
+        public BaudRate SerialOutputBaudrate;
 
         public bool IsUseUDPOutput;
         public string OutputUDPIPAddress;
         public int OutputUDPPort;
+        public bool IsUDPOutputNMEA;
 
-        public bool IsAutoSoundSpeed;        
-        public double WaterTemperatureC;
-        public double SalinityPSU;
-        public double SoundSpeedMps;
-       
-        public double RadialErrorThresholdM;
-        public double InitialSimplexSizeM;
+        public bool IsAutoSalinity;
+        public double Salinity_PSU;
+        public bool IsAutoSoundSpeed;
+        public double SoundSpeed_mps;
+        public double WaterTemperature_C;
 
+        public double RadialErrorThreshold_m;
         public int CourseEstimatorFIFOSize;
-        public int TrackFilterFIFOSize;
+        public int TrackSmootherFIFOSize;
+        public double TrackSmootherRangeThreshold_m;
+        public int DHFilterFIFOSize;
+        public double DHFilterRangeThreshold_m;
+        public double DHFilterMaxSpeed_mps;
 
         public int TrackPointsToShow;
+        public int TileSizePx;
 
         public bool IsEmuEnabled;
-
         public string[] TileServers;
+
+        public bool EnableTilesDownloading;
 
         #endregion
 
@@ -59,48 +46,44 @@ namespace WAYU
 
         public override void SetDefaults()
         {
-            InPortName = "COM1";
             InPortBaudrate = BaudRate.baudRate9600;
 
-            IsUseAUX1 = false;
-            AUX1PortName = "COM1";
-            AUX1PortBaudrate = BaudRate.baudRate9600;
+            IsUseAUXGNSS = false;
+            AUXGNSSBaudrate = BaudRate.baudRate9600;
 
-            IsUseAUX2 = false;
-            AUX2PortName = "COM1";
-            AUX2PortBaudrate = BaudRate.baudRate9600;
+            IsAutoSalinity = true;
+            Salinity_PSU = UCNLPhysics.PHX.PHX_FWTR_SALINITY_PSU;
+            IsAutoSoundSpeed = true;
+            SoundSpeed_mps = UCNLPhysics.PHX.PHX_FWTR_SOUND_SPEED_MPS;
+            WaterTemperature_C = 17;
 
-            PrimaryGNSSAUXID = AUX_IDs.NONE;
-
-            IsUseOutputPort = false;
-            OutputPortName = "COM1";
-            OutputPortBaudrate = BaudRate.baudRate9600;
+            SerialOutputBaudrate = BaudRate.baudRate9600;
 
             IsUseUDPOutput = false;
             OutputUDPIPAddress = "255.255.255.255";
             OutputUDPPort = 28128;
+            IsUDPOutputNMEA = true;
 
-            IsAutoSoundSpeed = true;
-            WaterTemperatureC = 17;
-            SalinityPSU = 0.0;
-            SoundSpeedMps = 1450;
+            TrackPointsToShow = 256;
+            RadialErrorThreshold_m = 10;
 
-            RadialErrorThresholdM = 10;
-            InitialSimplexSizeM = 1.0;            
+            CourseEstimatorFIFOSize = 8;
+            TrackSmootherFIFOSize = 4;
+            TrackSmootherRangeThreshold_m = 100;
+            DHFilterFIFOSize = 8;
+            DHFilterRangeThreshold_m = 10;
+            DHFilterMaxSpeed_mps = 1;
 
-            TrackPointsToShow = 64;
-
-            CourseEstimatorFIFOSize = 16;
-            TrackFilterFIFOSize = 4;
-
-            IsEmuEnabled = false;
-
+            IsEmuEnabled = true;
+            TileSizePx = 256;
             TileServers = new string[]
             {
                 "https://a.tile.openstreetmap.org",
                 "https://b.tile.openstreetmap.org",
                 "https://c.tile.openstreetmap.org"
             };
+
+            EnableTilesDownloading = false;
         }
 
         #endregion

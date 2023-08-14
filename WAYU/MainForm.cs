@@ -1,20 +1,20 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Globalization;
 using System.IO;
+using System.IO.Compression;
+using System.IO.Ports;
+using System.Net;
 using System.Reflection;
-using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using UCNLDrivers;
-using UCNLKML;
-using UCNLNav;
-using UCNLNMEA;
+using UCNLUI;
 using UCNLUI.Dialogs;
 using uOSM;
 using WAYU.APL;
+using WAYU.ExtraUI;
 
 namespace WAYU
 {
@@ -22,60 +22,151 @@ namespace WAYU
     {
         #region Properties
 
-        uOSMTileProvider tProvider;
-
-        APLEmulator aplEmu;
-        APLLBLCore aplCore;
-
-        TSLogProvider logger;
-        SimpleSettingsProviderXML<SettingsContainer> settingsProvider;
-
-        string settingsFileName;
-        string logPath;
-        string logFileName;
-        string snapshotsPath;
-        string tileDBPath;
-
-        Dictionary<string, List<GeoPoint3DETm>> tracks;
+        static readonly string appicon = "🐠";
 
         bool isRestart = false;
 
-        bool tracksChanged = false;
-        bool TracksChanged
+        string logPath;
+        string logFileName;
+        string settingsFileName;
+        string uiSettingsFileName;
+        string snapshotsPath;
+        string tileDBPath;
+
+        int autoscreenshot_idx = 0;
+        string autoscreenshots_path;
+        PrecisionTimer uTimer;
+
+        SimpleSettingsProviderXML<SettingsContainer> sProvider;
+        SimpleSettingsProvider<UISettingsContainer> usProvider;
+
+        readonly TSLogProvider logger;
+        readonly LogPlayer lPlayer;
+        readonly TrackManager tManager;
+        readonly UIAutomation uiAutomation;
+        readonly uOSMTileProvider tProvider;
+        readonly APLCore core;
+
+        #region uiAutomation
+
+        bool markedPointsVisible
         {
-            get { return tracksChanged; }
+            get => markedPointsVisibleBtn.Checked;
             set
             {
-                if (value != tracksChanged)
+                markedPointsVisibleBtn.Checked = value;
+                usProvider.Data.MarkedPointsVisible = value;
+                plot.SetTracksVisibility(APL.APL.MarkedPointsTrackID, value);
+                plot.Invalidate();
+            }
+        }
+
+        bool buoysVisible
+        {
+            get => buoysVisibleBtn.Checked;
+            set
+            {
+                buoysVisibleBtn.Checked = value;
+                usProvider.Data.BuoysVisible = value;
+                plot.SetTracksVisibility(APL.APL.BuoysTracksIDs, value);
+                plot.Invalidate();
+            }
+        }
+
+        bool historyVisible
+        {
+            get => historyVisibleBtn.Checked;
+            set
+            {
+                historyVisibleBtn.Checked = value;
+                usProvider.Data.HistoryVisible = value;
+                plot.HistoryVisible = value;
+                plot.Invalidate();
+            }
+        }
+
+        bool plotLegendVisible
+        {
+            get => plotLegendVisibleBtn.Checked;
+            set
+            {
+                plotLegendVisibleBtn.Checked = value;
+                usProvider.Data.PlotLegendVisible = value;
+                plot.LegendVisible = value;
+                plot.Invalidate();
+            }
+        }
+
+        bool notesVisible
+        {
+            get => notesVisibleBtn.Checked;
+            set
+            {
+                notesVisibleBtn.Checked = value;
+                usProvider.Data.NotesVisible = value;
+                plot.RightUpperTextVisible = value;
+                plot.Invalidate();
+            }
+        }
+
+        bool extraInfoVisible
+        {
+            get => extraInfoVisibleBtn.Checked;
+            set
+            {
+                extraInfoVisibleBtn.Checked = value;
+                usProvider.Data.ExtraInfoVisible = value;
+                plot.LeftUpperTextVisible = value;
+                plot.Invalidate();
+            }
+        }
+
+        bool followTarget
+        {
+            get => followMapBtn.Checked;
+            set
+            {
+                followMapBtn.Checked = value;
+                usProvider.Data.FollowTarget = value;
+
+                if (value && core.LocationPresent)
                 {
-                    tracksChanged = value;
-                    InvokeSetEnabledState(primaryToolStrip, trackExportAsBtn, tracksChanged);
-                    InvokeSetEnabledState(primaryToolStrip, trackClearBtn, tracksChanged);
+                    var location = core.GetLocation();
+                    plot.SetCenter(location.Latitude, location.Longitude);
                 }
             }
         }
 
-        bool isAutoScreenshot = false;
-
-        Dictionary<TBAQuality, Color> tbaTextColors = new Dictionary<TBAQuality, Color>()
+        bool showTiles
         {
-            { TBAQuality.Good, Color.Green },
-            { TBAQuality.Fair, Color.DarkGoldenrod },
-            { TBAQuality.Poor, Color.Orange },
-            { TBAQuality.Out_of_base, Color.Red },
-            { TBAQuality.Invalid, Color.Black }
-        };
+            get => showTilesBtn.Checked;
+            set
+            {
+                showTilesBtn.Checked = value;
+                usProvider.Data.ShowTiles = value;
+                plot.TilesEnabled = value;
+            }
+        }
 
-        Dictionary<DOPState, Color> dopTextColors = new Dictionary<DOPState, Color>()
+        BasePointType navigateToBasePoint
         {
-            { DOPState.Ideal, Color.LimeGreen },
-            { DOPState.Excellent, Color.Green },
-            { DOPState.Good, Color.Olive },
-            { DOPState.Moderate, Color.DarkGoldenrod },
-            { DOPState.Fair, Color.Orange },
-            { DOPState.Poor, Color.Red },
-            { DOPState.Invalid, Color.Black }
-        };
+            get => (BasePointType)Enum.Parse(typeof(BasePointType), navPointCbx.SelectedItem.ToString());
+            set => UIHelpers.TrySetCbxItem(navPointCbx, value.ToString());
+        }
+
+        #endregion
+
+        string serialOutputPortName
+        {
+            get => serialOutputPortNameCbx.SelectedItem == null ? string.Empty : serialOutputPortNameCbx.SelectedItem.ToString();
+            set => UIHelpers.TrySetCbxItem(serialOutputPortNameCbx, value);
+        }
+
+        bool autoscreenshotEnabled
+        {
+            get => autoscreenshotsBtn.Checked;
+            set => autoscreenshotsBtn.Checked = value;
+        }
 
         #endregion
 
@@ -83,12 +174,13 @@ namespace WAYU
 
         public MainForm()
         {
-            InitializeComponent();
+            #region App title init
 
-            #region Early init
-
-            string vString = string.Format("{0} v{1}", Application.ProductName, Assembly.GetExecutingAssembly().GetName().Version.ToString());
-            this.Text = vString;
+            string vString = string.Format("{0} {1} v{2} {3}",
+                appicon,
+                Application.ProductName,
+                Assembly.GetExecutingAssembly().GetName().Version.ToString(),
+                MDates.GetReferenceNote());
 
             #endregion
 
@@ -96,6 +188,7 @@ namespace WAYU
 
             DateTime startTime = DateTime.Now;
             settingsFileName = Path.ChangeExtension(Application.ExecutablePath, "settings");
+            uiSettingsFileName = Path.ChangeExtension(Application.ExecutablePath, "uisettings");
             logPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "LOG");
             logFileName = StrUtils.GetTimeDirTreeFileName(startTime, Application.ExecutablePath, "LOG", "log", true);
             snapshotsPath = StrUtils.GetTimeDirTree(startTime, Application.ExecutablePath, "SNAPSHOTS", false);
@@ -108,20 +201,20 @@ namespace WAYU
             logger = new TSLogProvider(logFileName);
             logger.WriteStart();
             logger.Write(vString);
-            logger.TextAddedEvent += (o, e) => InvokeAppendHisotryLine(e.Text);
+            logger.TextAddedEvent += (o, e) => InvokeAppendHistoryLine(e.Text);
 
             #endregion
-
+            
             #region settings
 
-            settingsProvider = new SimpleSettingsProviderXML<SettingsContainer>();
-            settingsProvider.isSwallowExceptions = false;
+            sProvider = new SimpleSettingsProviderXML<SettingsContainer>();
+            sProvider.isSwallowExceptions = false;
 
             logger.Write(string.Format("Loading settings from {0}", settingsFileName));
 
             try
             {
-                settingsProvider.Load(settingsFileName);
+                sProvider.Load(settingsFileName);
             }
             catch (Exception ex)
             {
@@ -129,206 +222,263 @@ namespace WAYU
             }
 
             logger.Write("Current application settings:");
-            logger.Write(settingsProvider.Data.ToString());
-
-            emuBtn.Visible = settingsProvider.Data.IsEmuEnabled;
-
-            #endregion
-
-            #region custom UI
-
-            List<string> z_track_keys = new List<string>();
-
-            z_track_keys.Add("ALL");
-            z_track_keys.Add("WAYU (FLT)");
-            z_track_keys.Add("Marked");
-            z_track_keys.Add("WAYU (FLT)+Marked");
-            
-            geoPlot.InitTrack("WAYU (RAW)", 64, Color.Yellow, 1, 4, false, Color.Yellow, 1, 200);
-            geoPlot.InitTrack("WAYU (FLT)", settingsProvider.Data.TrackPointsToShow, Color.Red, 1, 4, true, Color.Red, 1, 200);
-
-
-            if (settingsProvider.Data.IsUseAUX1)
-            {
-                geoPlot.InitTrack("AUX1", 64, Color.Blue, 1, 4, true, Color.Blue, 1, 200);
-                z_track_keys.Add("AUX1");
-                z_track_keys.Add("WAYU (FLT)+AUX1");
-                z_track_keys.Add("WAYU (FLT)+AUX1+Marked");
-            }
-
-            if (settingsProvider.Data.IsUseAUX2)
-            {
-                geoPlot.InitTrack("AUX2", 64, Color.Blue, 1, 4, true, Color.Violet, 1, 200);
-                z_track_keys.Add("AUX2");
-                z_track_keys.Add("WAYU (FLT)+AUX2");
-                z_track_keys.Add("WAYU (FLT)+AUX2+Marked");
-            }
-
-            z_track_keys.Add("BASE 1");
-            z_track_keys.Add("BASE 2");
-            z_track_keys.Add("BASE 3");
-            z_track_keys.Add("BASE 4");
-            z_track_keys.Add("WAYU (FLT)+WAYU (RAW)");
-
-            geoPlot.InitTrack("Marked", 256, Color.Black, 4, 4, false, Color.Black, 1, 200);
-
-            geoPlot.InitTrack("BASE 1", 4, Color.DarkRed, 2, 4, false, Color.Salmon, 1, 200);
-            geoPlot.InitTrack("BASE 2", 4, Color.DarkOrange, 2, 4, false, Color.Gold, 1, 200);
-            geoPlot.InitTrack("BASE 3", 4, Color.Green, 2, 4, false, Color.MediumSpringGreen, 1, 200);
-            geoPlot.InitTrack("BASE 4", 4, Color.Purple, 2, 4, false, Color.SkyBlue, 1, 200);
-
-
-            fitTracksCbx.Items.Clear();
-            fitTracksCbx.Items.AddRange(z_track_keys.ToArray());
-            fitTracksCbx.SelectedIndex = 0;
-
-            geoPlot.SetTracksVisibility(true);
-            geoPlot.TextBackgroundColor = Color.FromArgb(127, Color.White);
-
-            #endregion
-
-            #region custom items
-
-            tracks = new Dictionary<string, List<GeoPoint3DETm>>();
-
-            #endregion
-
-            #region aplCore
-
-            Dictionary<string, SerialPortSettings> ports = new Dictionary<string, SerialPortSettings>();
-            ports.Add("WAYU GIBs",
-                new SerialPortSettings(settingsProvider.Data.InPortName,
-                    settingsProvider.Data.InPortBaudrate, 
-                    System.IO.Ports.Parity.None, 
-                    DataBits.dataBits8, 
-                    System.IO.Ports.StopBits.One, 
-                    System.IO.Ports.Handshake.None));
-
-            if (settingsProvider.Data.IsUseAUX1)
-            {
-                ports.Add("AUX1",
-                    new SerialPortSettings(settingsProvider.Data.AUX1PortName,
-                        settingsProvider.Data.AUX1PortBaudrate,
-                        System.IO.Ports.Parity.None,
-                        DataBits.dataBits8,
-                        System.IO.Ports.StopBits.One,
-                        System.IO.Ports.Handshake.None));
-            }
-
-            if (settingsProvider.Data.IsUseAUX2)
-            {
-                ports.Add("AUX2",
-                    new SerialPortSettings(settingsProvider.Data.AUX2PortName,
-                        settingsProvider.Data.AUX2PortBaudrate,
-                        System.IO.Ports.Parity.None,
-                        DataBits.dataBits8,
-                        System.IO.Ports.StopBits.One,
-                        System.IO.Ports.Handshake.None));
-            }
-
-            aplCore = new APLLBLCore(ports,
-                settingsProvider.Data.RadialErrorThresholdM,
-                settingsProvider.Data.InitialSimplexSizeM,
-                settingsProvider.Data.CourseEstimatorFIFOSize,
-                settingsProvider.Data.TrackFilterFIFOSize);
-
-            if ((settingsProvider.Data.PrimaryGNSSAUXID == AUX_IDs.AUX1) &&
-                (settingsProvider.Data.IsUseAUX1))
-            {
-                aplCore.SetPrimaryGNSSSource("AUX1");                
-            }
-            else if ((settingsProvider.Data.PrimaryGNSSAUXID == AUX_IDs.AUX2) &&
-                (settingsProvider.Data.IsUseAUX2))
-            {
-                aplCore.SetPrimaryGNSSSource("AUX2");
-            }
-            
-            if (settingsProvider.Data.IsUseOutputPort)
-            {
-                aplCore.InitOutputPort(
-                    new SerialPortSettings(settingsProvider.Data.OutputPortName,
-                        settingsProvider.Data.OutputPortBaudrate,
-                        System.IO.Ports.Parity.None,
-                        DataBits.dataBits8,
-                        System.IO.Ports.StopBits.One,
-                        System.IO.Ports.Handshake.None));
-            }
-
-            if (settingsProvider.Data.IsUseUDPOutput)
-            {
-                aplCore.InitOutputUDP(settingsProvider.Data.OutputUDPPort,
-                    System.Net.IPAddress.Parse(settingsProvider.Data.OutputUDPIPAddress));
-            }
-
-            aplCore.InfoEventHandler += (o, e) => logger.Write(string.Format("({0}) {1}", e.EventType, e.LogString));
-            aplCore.PortStateChangedHandler += (o, e) => InvokeSetStatusStripLblText(mainStatusStrip, portStatesLbl, aplCore.GetPortsStateDescription());            
-            aplCore.TrackUpdateHandler += (o, e) =>
-                {
-                    if (!tracks.ContainsKey(e.TrackID))
-                        tracks.Add(e.TrackID, new List<GeoPoint3DETm>());
-                    tracks[e.TrackID].Add(e.TrackPoint);
-                    InvokeUpdateTracksPlot(e, true);
-
-                    if (isAutoScreenshot)
-                        InvokeSaveFullScreenshot();
-
-                    TracksChanged = true;
-                };
-            aplCore.SystemUpdateHandler += (o, e) =>
-            {
-                if (geoPlot.InvokeRequired)
-                {
-                    var sString = aplCore.GetSystemStateDescription();
-                    var tString = aplCore.GetTargetStateDescription();
-                    StringBuilder sb = new StringBuilder();
-                    if (!string.IsNullOrEmpty(sString))
-                        sb.AppendFormat("SYSTEM:\r\n{0}\r\n", sString);
-                    if (!string.IsNullOrEmpty(tString))
-                        sb.AppendFormat("TARGET:\r\n{0}", tString);
-
-                    geoPlot.LeftUpperText = sb.ToString();
-                    geoPlot.Invalidate();
-                }
-                else
-                {
-                    var sString = aplCore.GetSystemStateDescription();
-                    var tString = aplCore.GetTargetStateDescription();
-                    StringBuilder sb = new StringBuilder();
-                    if (!string.IsNullOrEmpty(sString))
-                        sb.AppendFormat("SYSTEM:\r\n{0}\r\n", sString);
-                    if (!string.IsNullOrEmpty(tString))
-                        sb.AppendFormat("TARGET:\r\n{0}", tString);
-
-                    geoPlot.LeftUpperText = sb.ToString();
-                    geoPlot.Invalidate();
-                }
-
-                InvokeSetText(secondaryToolStrip, tbaLbl, aplCore.tbaQuality.ToString());
-                InvokeSetColorMode(secondaryToolStrip, tbaLbl, tbaTextColors[aplCore.tbaQuality.Value]);
-
-                InvokeSetText(secondaryToolStrip, hdopLbl, aplCore.dopState.ToString());
-                InvokeSetColorMode(secondaryToolStrip, hdopLbl, dopTextColors[aplCore.dopState.Value]);
-            };
+            logger.Write(sProvider.Data.ToString());
 
             #endregion            
 
-            #region aplEmu
+            InitializeComponent();
 
-            if (settingsProvider.Data.IsEmuEnabled)
+            this.Text = vString;
+
+            #region tProvider
+
+            if ((sProvider.Data.TileServers != null) &&
+                (sProvider.Data.TileServers.Length > 0))
             {
-                aplEmu = new APLEmulator();
-                aplEmu.EmulatorOutputEvent += (o, e) =>
-                    {
-                        aplCore.Emulate(e.Message);
-                    };
+                tProvider = new uOSMTileProvider(1024,
+                    19,
+                    new Size(sProvider.Data.TileSizePx, sProvider.Data.TileSizePx),
+                    tileDBPath,
+                    sProvider.Data.TileServers);
+
+                tProvider.DownloadingEnabled = sProvider.Data.EnableTilesDownloading;           
             }
 
             #endregion
 
-            #region tProvider
+            #region tManager
 
-            tProvider = new uOSMTileProvider(256, 19, new Size(256, 256), tileDBPath, settingsProvider.Data.TileServers);
-            geoPlot.ConnectTileProvider(tProvider);
+            tManager = new TrackManager();
+            tManager.IsEmptyChanged += (o, e) => UIHelpers.InvokeSetEnabledState(mainToolStrip, utilsTracksBtn, !tManager.IsEmpty);
+            tManager.IsEmptyChanged(this, EventArgs.Empty);
+
+            #endregion
+
+            #region Misc. init
+
+            moonPhaseLbl.Text = AstroAndTimeUtils.MoonPhaseIcon(DateTime.Now);
+            moonPhaseLbl.ToolTipText = AstroAndTimeUtils.MoonPhaseDescription(DateTime.Now);
+
+            navPointCbx.Items.Clear();
+            navPointCbx.Items.AddRange(Enum.GetNames(typeof(APL.BasePointType)));
+
+            SwitchOutputPortUIEnabledState(false);
+
+            plot.InitTrack(APL.APL.WAYULocationTrackID, sProvider.Data.TrackPointsToShow, Color.Red, 8, 1, true);
+            plot.InitTrack(APL.APL.BuoysTracksIDs[0],     4, Color.DarkRed,    8, 1, false);
+            plot.InitTrack(APL.APL.BuoysTracksIDs[1],     4, Color.DarkOrange, 8, 1, false);
+            plot.InitTrack(APL.APL.BuoysTracksIDs[2],     4, Color.Green,      8, 1, false);
+            plot.InitTrack(APL.APL.BuoysTracksIDs[3],     4, Color.Purple,     8, 1, false);
+            plot.InitTrack(APL.APL.MarkedPointsTrackID, 256, Color.Black,      8, 1, false);
+
+            if (sProvider.Data.IsUseAUXGNSS)
+                plot.InitTrack(APL.APL.AuxGNSSTrackID, 64, Color.Blue, 8, 1, true);
+            
+            if (tProvider != null)
+                plot.ConnectTileProvider(tProvider);
+
+            #endregion
+
+            #region uiAutomation
+
+            uiAutomation = new UIAutomation();
+            uiAutomation.InitBoolProperty<MainForm>(this, nameof(markedPointsVisible));
+            uiAutomation.InitBoolProperty<MainForm>(this, nameof(buoysVisible));
+            uiAutomation.InitBoolProperty<MainForm>(this, nameof(historyVisible));
+            uiAutomation.InitBoolProperty<MainForm>(this, nameof(plotLegendVisible));
+            uiAutomation.InitBoolProperty<MainForm>(this, nameof(notesVisible));
+            uiAutomation.InitBoolProperty<MainForm>(this, nameof(extraInfoVisible));
+            uiAutomation.InitBoolProperty<MainForm>(this, nameof(followTarget));
+            uiAutomation.InitBoolProperty<MainForm>(this, nameof(showTiles));
+
+            #endregion            
+
+            #region lPlayer
+
+            lPlayer = new LogPlayer();
+            lPlayer.NewLogLineHandler += (o, e) =>
+            {
+                if (e.Line.StartsWith("(INFO)"))
+                {
+                    int idx = e.Line.IndexOf(' ');
+                    if (idx >= 0)
+                    {
+                        core.Emulate(e.Line.Substring(idx).Trim());
+                    }
+                }
+                else if (e.Line.StartsWith("NOTE"))
+                {
+                    var match = Regex.Match(e.Line, "\"[^\" ][^\"]*\"");
+                    if (match.Success)
+                        InvokeSetNoteText(match.ToString().Trim('"'));
+                }
+                else if (e.Line.StartsWith(UIAutomation.LogID))
+                {
+                    int idx = e.Line.IndexOf(' ');
+                    if (idx >= 0)
+                        InvokePerformUIAction(e.Line.Substring(idx).Trim());
+                }
+            };
+
+            lPlayer.LogPlaybackFinishedHandler += (o, e) =>
+            {
+                core.Stop();
+
+                if (InvokeRequired)
+                {
+                    Invoke((MethodInvoker)delegate
+                    {
+                        settingsBtn.Enabled = true;
+                        linkBtn.Enabled = true;
+                        logPlaybackBtn.Text = "▶ Playback...";
+                        MessageBox.Show(
+                            string.Format("Log-file \"{0}\" playback is finished.", lPlayer.LogFileName),
+                            "Information",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                    });
+                }
+                else
+                {
+                    settingsBtn.Enabled = true;
+                    linkBtn.Enabled = true;
+                    logPlaybackBtn.Text = "▶ Playback...";
+                    MessageBox.Show(
+                        string.Format("Log-file \"{0}\" playback is finished.", lPlayer.LogFileName),
+                        "Information",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+            };
+
+            #endregion
+
+            #region core
+
+            core = new APLCore(sProvider.Data.InPortBaudrate,
+                sProvider.Data.RadialErrorThreshold_m, sProvider.Data.CourseEstimatorFIFOSize,
+                sProvider.Data.TrackSmootherFIFOSize, sProvider.Data.TrackSmootherRangeThreshold_m,
+                sProvider.Data.DHFilterFIFOSize, sProvider.Data.DHFilterMaxSpeed_mps, sProvider.Data.DHFilterRangeThreshold_m);
+
+            core.Salinity_psu = sProvider.Data.Salinity_PSU;
+            core.IsAutoSalinity = sProvider.Data.IsAutoSalinity;
+            core.SoundSpeed_mps = sProvider.Data.SoundSpeed_mps;
+            core.IsAutoSoundSpeed = sProvider.Data.IsAutoSoundSpeed;
+
+            if (sProvider.Data.IsUseAUXGNSS)
+                core.AuxGNSSInit(sProvider.Data.AUXGNSSBaudrate);
+
+            if (sProvider.Data.IsUseUDPOutput)
+                core.UDPOutputInit(IPAddress.Parse(sProvider.Data.OutputUDPIPAddress),
+                    sProvider.Data.OutputUDPPort,
+                    sProvider.Data.IsUDPOutputNMEA);
+
+            core.TrackPointReceived += (o, e) =>
+            {
+                tManager.AddPoint(e.TrackID, e.Latitude_deg, e.Longitude_deg, double.IsNaN(e.Depth_m) ? 0 : e.Depth_m, e.TimeStamp);
+
+                if (e.TrackID != APL.APL.WAYURawLocationTrackID)
+                    InvokeAddPoint(e);
+
+                if (e.TrackID == APL.APL.WAYULocationTrackID) 
+                    InvokeCheckAutocenterCenterPlot(e.Latitude_deg, e.Longitude_deg);
+            };
+
+            core.APLPortDetectedChanged += (o, e) =>
+                InvokeUpdatePortStatusLbl(mainStatusStrip, aplPortStatusLbl, core.IsActive, core.APLPortDetected, core.APLPortStatus);
+            core.APLPortActiveChanged += (o, e) =>
+            {
+                UIHelpers.InvokeSetCheckedState(mainToolStrip, linkBtn, core.IsActive);
+                UIHelpers.InvokeSetEnabledState(mainToolStrip, settingsBtn, !core.IsActive);
+                UIHelpers.InvokeSetEnabledState(mainToolStrip, logPlaybackBtn, !core.IsActive);
+                InvokeUpdatePortStatusLbl(mainStatusStrip, aplPortStatusLbl, core.IsActive, core.APLPortDetected, core.APLPortStatus);
+                logger.Write(string.Format("{0}={1}", nameof(core.IsActive), core.IsActive));
+            };
+
+            core.AuxGNSSPortActiveChanged += (o, e) =>
+                InvokeUpdatePortStatusLbl(mainStatusStrip, auxGNSSPortStatusLbl, core.IsActive, core.AuxGNSSPortDetected, core.AuxGNSSPortStatus);
+            core.AuxGNSSPortDetectedChanged += (o, e) =>
+            {
+                InvokeUpdatePortStatusLbl(mainStatusStrip, auxGNSSPortStatusLbl, core.IsActive, core.AuxGNSSPortDetected, core.AuxGNSSPortStatus);
+                InvokeSwitchOutputPortUIEnabledState(core.AuxGNSSPortDetected);
+
+                if (core.AuxGNSSPortDetected &&
+                   !core.SerialOutputEnabled)
+                {
+                    if (InvokeRequired)
+                    {
+                        Invoke((MethodInvoker)delegate
+                        {
+                            serialOutputPortsRefreshBtn_Click(serialOutputPortsRefreshBtn, EventArgs.Empty);
+                            UIHelpers.TrySetCbxItem(serialOutputPortNameCbx, usProvider.Data.SerialOutputPortName);
+                            serialOutputLinkBtn_Click(null, EventArgs.Empty);
+                        });
+                    }
+                    else
+                    {
+                        serialOutputPortsRefreshBtn_Click(serialOutputPortsRefreshBtn, EventArgs.Empty);
+                        UIHelpers.TrySetCbxItem(serialOutputPortNameCbx, usProvider.Data.SerialOutputPortName);
+                        serialOutputLinkBtn_Click(null, EventArgs.Empty);
+                    }
+                }
+            };
+
+            core.StateUpdated += (o, e) => InvokeSetLeftUpperText(core.GetSystemDescription());
+
+            core.StatHelperActiveChanged += (o, e) =>
+            {
+                if (core.StatHelperActive)
+                {
+                    InvokeSetText(secondaryToolStrip, accuracyEstimationStartStopBtn, "⏹ Stop");
+                    InvokeSetCheckedState(secondaryToolStrip, accuracyEstimationStartStopBtn, true);
+                }
+                else
+                {
+                    InvokeSetText(secondaryToolStrip, accuracyEstimationStartStopBtn, "⏺ Start");
+                    InvokeSetCheckedState(secondaryToolStrip, accuracyEstimationStartStopBtn, false);
+                }
+            };
+
+            core.LogEvent += (o, e) => logger.Write(string.Format("({0}) {1}", e.EventType, e.LogString));
+
+            #endregion            
+
+            #region UI settings
+
+            usProvider = new SimpleSettingsProviderXML<UISettingsContainer>();
+            usProvider.isSwallowExceptions = true;
+            usProvider.Load(uiSettingsFileName);
+
+            markedPointsVisible = usProvider.Data.MarkedPointsVisible;
+            buoysVisible = usProvider.Data.BuoysVisible;
+            historyVisible = usProvider.Data.HistoryVisible;
+            plotLegendVisible = usProvider.Data.PlotLegendVisible;
+            notesVisible = usProvider.Data.NotesVisible;
+            extraInfoVisible = usProvider.Data.ExtraInfoVisible;
+            followTarget = usProvider.Data.FollowTarget;
+            showTiles = usProvider.Data.ShowTiles;
+
+            if ((usProvider.Data.WindowSize.Width >= this.MinimumSize.Width) &&
+                (usProvider.Data.WindowSize.Height >= this.MinimumSize.Height))
+                this.Size = usProvider.Data.WindowSize;
+
+            this.Location = usProvider.Data.WindowLocation;
+            this.WindowState = usProvider.Data.WindowState;
+
+            if ((usProvider.Data.BasePointTypeToNavigate == BasePointType.Specified) ||
+               (usProvider.Data.BasePointTypeToNavigate == BasePointType.AUX_GNSS))
+                usProvider.Data.BasePointTypeToNavigate = BasePointType.Base_1;
+
+            navigateToBasePoint = usProvider.Data.BasePointTypeToNavigate;
+
+            #endregion
+
+            #region uTimer
+
+            uTimer = new PrecisionTimer();
+            uTimer.Period = 1000;
+            uTimer.Mode = Mode.Periodic;
+            uTimer.Tick += (o, e) => InvokeSaveAutoscreenshot();
 
             #endregion
         }
@@ -337,7 +487,199 @@ namespace WAYU
 
         #region Methods
 
-        private void SaveFullScreenshot()
+        #region Custom UI invokers
+
+        private void InvokeSaveAutoscreenshot()
+        {
+            if (InvokeRequired)
+                Invoke((MethodInvoker)delegate { SaveAutoscreenShot(); });
+            else
+                SaveAutoscreenShot();
+        }
+
+        private void CheckAutocenterPlot(double lat, double lon)
+        {
+            if (followTarget)
+            {
+                plot.SetCenter(lat, lon);
+            }
+        }
+
+        private void InvokeCheckAutocenterCenterPlot(double lat, double lon)
+        {
+            if (InvokeRequired)
+                Invoke((MethodInvoker)delegate { CheckAutocenterPlot(lat, lon); });
+            else
+                CheckAutocenterPlot(lat, lon);
+        }
+
+        private void InvokeAppendHistoryLine(string line)
+        {
+            if (plot == null)
+                return;
+
+            if (plot.InvokeRequired)
+                plot.Invoke((MethodInvoker)delegate
+                {
+                    plot.AppendHistoryLine(line);
+                    plot.Invalidate();
+                });
+            else
+            {
+                plot.AppendHistoryLine(line);
+                plot.Invalidate();
+            }
+        }
+
+        private void InvokeUpdatePortStatusLbl(StatusStrip strip, ToolStripStatusLabel lbl, bool active, bool detected, string text)
+        {
+            Color backColor = Color.FromKnownColor(KnownColor.Control);
+            Color foreColor = Color.FromKnownColor(KnownColor.ControlText);
+
+            if (active)
+            {
+                foreColor = Color.Yellow;
+                if (!detected)
+                    backColor = Color.Red;
+                else
+                    backColor = Color.Green;
+            }
+
+            UIHelpers.InvokeSetText(strip, lbl, text, foreColor, backColor);
+        }
+
+        private void InvokeSwitchOutputPortUIEnabledState(bool enabled)
+        {
+            if (bottomSecondaryToolStrip.InvokeRequired)
+                bottomSecondaryToolStrip.Invoke((MethodInvoker)delegate { SwitchOutputPortUIEnabledState(enabled); });
+            else
+                SwitchOutputPortUIEnabledState(enabled);
+        }
+
+        private void SwitchOutputPortUIEnabledState(bool enabled)
+        {
+            serialOutputPortNameCbx.Enabled = enabled;
+            serialOutputLinkBtn.Enabled = enabled;
+            serialOutputPortsRefreshBtn.Enabled = enabled;
+            serialOutputLbl.Enabled = enabled;
+        }
+
+        private void InvokeSetLeftUpperText(string text)
+        {
+            if (plot.InvokeRequired)
+                plot.Invoke((MethodInvoker)delegate 
+                {  
+                    plot.LeftUpperText = text;
+                    plot.Invalidate();
+                });
+            else
+            {
+                plot.LeftUpperText = text;
+                plot.Invalidate();
+            }
+        }
+
+        private void InvokeSetNoteText(string text)
+        {
+            if (plot.InvokeRequired)
+                plot.Invoke((MethodInvoker)delegate
+                {
+                    plot.RightUpperTextSet(text);
+                    plot.Invalidate();
+                });
+            else
+            {
+                plot.RightUpperTextSet(text);
+                plot.Invalidate();
+            }
+        }
+
+        private void InvokePerformUIAction(string uiActionName)
+        {
+            if (this.InvokeRequired)
+                this.Invoke((MethodInvoker)delegate { uiAutomation.PerformUIAction(uiActionName); });
+            else
+                uiAutomation.PerformUIAction(uiActionName);
+        }
+
+        private void InvokeSetCheckedState(ToolStrip strip, ToolStripMenuItem item, bool checkedState)
+        {
+            if (strip.InvokeRequired)
+                strip.Invoke((MethodInvoker)delegate
+                {
+                    item.Checked = checkedState;
+                });
+            else
+                item.Checked = checkedState;
+        }
+
+        private void InvokeSetText(ToolStrip strip, ToolStripMenuItem item, string text)
+        {
+            if (strip.InvokeRequired)
+                strip.Invoke((MethodInvoker)delegate
+                {
+                    item.Text = text;
+                });
+            else
+                item.Text = text;
+        }
+
+        private void InvokeAddPoint(TrackPointEventArgs e)
+        {
+            if (plot.InvokeRequired)
+                plot.Invoke((MethodInvoker)delegate
+                {
+                    AddPoint(e);
+                });
+            else
+                AddPoint(e);
+        }
+
+        private void AddPoint(TrackPointEventArgs e)
+        {
+            if (e.IsCourse)
+                plot.AddPoint(e.TrackID, e.Latitude_deg, e.Longitude_deg, e.Course_deg);
+            else
+                plot.AddPoint(e.TrackID, e.Latitude_deg, e.Longitude_deg);
+
+            plot.Invalidate();
+        }
+
+        #endregion
+
+        private void StartAutoscreenShots()
+        {
+            if (uTimer.IsRunning)
+                uTimer.Stop();
+
+            autoscreenshot_idx = 0;
+            autoscreenshots_path = StrUtils.GetTimeDirTree(DateTime.Now, Application.ExecutablePath, "AUTOSNAPSHOTS", false);
+
+            uTimer.Start();
+        }
+        
+        private void StopAutoscreenShots()
+        {
+            uTimer.Stop();
+        }
+
+        private void ProcessException(Exception ex, bool isMsgBox)
+        {
+            logger.Write(ex);
+
+            if (isMsgBox)
+                MessageBox.Show(ex.Message,
+                    string.Format("{0} {1} - Error", appicon, Application.ProductName),
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+
+        private void StatusHintLinkUpdate(string text, string linkText)
+        {
+            bottomLinkLbl.Text = text;
+            bottomLinkLbl.Tag = linkText;
+        }
+
+        private void JustSaveFullScreenshot()
         {
             Bitmap target = new Bitmap(this.Width, this.Height);
             this.DrawToBitmap(target, this.DisplayRectangle);
@@ -347,11 +689,51 @@ namespace WAYU
                 if (!Directory.Exists(snapshotsPath))
                     Directory.CreateDirectory(snapshotsPath);
 
-                target.Save(Path.Combine(snapshotsPath, string.Format("{0}.{1}", StrUtils.GetHMSString(), ImageFormat.Png)));
+                var fName = string.Format("{0}.{1}", StrUtils.GetHMSString(), ImageFormat.Png);
+                var path = Path.Combine(snapshotsPath, fName);
+                target.Save(path, ImageFormat.Png);
             }
             catch
             {
-                //
+            }
+        }
+
+        private void SaveAutoscreenShot()
+        {
+            Bitmap target = new Bitmap(this.Width, this.Height);
+            this.DrawToBitmap(target, this.DisplayRectangle);
+
+            try
+            {
+                if (!Directory.Exists(autoscreenshots_path))
+                    Directory.CreateDirectory(autoscreenshots_path);
+
+                var fName = string.Format("{0:000000}.{1}", autoscreenshot_idx++, ImageFormat.Png);
+                var path = Path.Combine(autoscreenshots_path, fName);
+                target.Save(path, ImageFormat.Png);
+            }
+            catch { }
+        }
+
+        private string SaveFullScreenshot()
+        {
+            Bitmap target = new Bitmap(this.Width, this.Height);
+            this.DrawToBitmap(target, this.DisplayRectangle);
+
+            try
+            {
+                if (!Directory.Exists(snapshotsPath))
+                    Directory.CreateDirectory(snapshotsPath);
+
+                var fName = string.Format("{0}.{1}", StrUtils.GetHMSString(), ImageFormat.Png);
+                var path = Path.Combine(snapshotsPath, fName);
+                target.Save(path, ImageFormat.Png);
+
+                return string.Format("{0} {1}|{2}", "Screenshot saved to", fName, path);
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
             }
         }
 
@@ -363,295 +745,121 @@ namespace WAYU
                 SaveFullScreenshot();
         }
 
-        private void ProcessException(Exception ex, bool isShowMsgBox)
-        {
-            logger.Write(ex);
+        #region log utils
 
-            if (isShowMsgBox)
-                MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-
-        private void InvokeAppendHisotryLine(string line)
+        private int RemoveEmptyEntries(string rootPath, string exclude, int minSize)
         {
-            if (geoPlot.InvokeRequired)
-                geoPlot.Invoke((MethodInvoker)delegate 
-                { 
-                    geoPlot.AppendHistory(line);
-                    geoPlot.Invalidate();
-                });
-            else
+            var dirs = Directory.GetDirectories(rootPath);
+            int fNum = 0;
+            foreach (var item in dirs)
             {
-                geoPlot.AppendHistory(line);
-                geoPlot.Invalidate();
-            }
-        }
+                var fNames = Directory.GetFiles(item);
 
-        private void ProcessAnalyzeLog(string fileName)
-        {
-            try
-            {
-                using (StreamReader sr = File.OpenText(fileName))
+                foreach (var fName in fNames)
                 {
-                    string s = string.Empty;
-                    while ((s = sr.ReadLine()) != null)
+                    if (fName != exclude)
                     {
-                        int idx = s.IndexOf(NMEAParser.SentenceStartDelimiter);
-                        if (idx >= 0)
+                        FileInfo fInfo = new FileInfo(fName);
+                        if (fInfo.Length <= minSize)
                         {
-                            aplCore.Emulate(s.Substring(idx) + "\r\n");
-                            Application.DoEvents();
+                            try
+                            {
+                                File.Delete(fName);
+                                fNum++;
+                            }
+                            catch { }
                         }
                     }
                 }
 
-                MessageBox.Show(string.Format("Playback of '{0}' is finished", Path.GetFileNameWithoutExtension(fileName)),
-                    "Information",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                ProcessException(ex, true);
-            }
-        }
-
-        private bool TracksExportToKML(string fileName)
-        {
-            KMLData data = new KMLData(fileName, string.Format("Generated by {0}", Application.ProductName));
-            List<KMLLocation> kmlTrack;
-
-            foreach (var item in tracks)
-            {
-                kmlTrack = new List<KMLLocation>();
-                foreach (var point in item.Value)
-                    kmlTrack.Add(new KMLLocation(point.Longitude, point.Latitude, -point.Depth));
-
-                data.Add(new KMLPlacemark(string.Format("{0} track", item.Key), "", kmlTrack.ToArray()));
-            }
-
-            bool isOk = false;
-            try
-            {
-                TinyKML.Write(data, fileName);
-                isOk = true;
-            }
-            catch (Exception ex)
-            {
-                ProcessException(ex, true);
-            }
-
-            return isOk;
-        }
-
-        private bool TracksExportToCSV(string fileName)
-        {
-            StringBuilder sb = new StringBuilder();
-
-            foreach (var track in tracks)
-            {
-                sb.AppendFormat("\r\nTrack name: {0}\r\n", track.Key);
-                sb.Append("HH:MM:SS;LAT;LON;DPT;\r\n");
-
-                foreach (var point in track.Value)
+                fNames = Directory.GetFiles(item);
+                if (fNames.Length == 0)
                 {
-                    sb.AppendFormat(CultureInfo.InvariantCulture,
-                        "{0:00};{1:00};{2:00};{3:F06};{4:F06};{5:F03}\r\n",
-                        point.TimeStamp.Hour,
-                        point.TimeStamp.Minute,
-                        point.TimeStamp.Second,
-                        point.Latitude,
-                        point.Longitude,
-                        point.Depth);
+                    try
+                    {
+                        Directory.Delete(item);
+                    }
+                    catch { }
                 }
             }
 
-            bool isOk = false;
-            try
-            {
-                File.WriteAllText(fileName, sb.ToString());
-                isOk = true;
-            }
-            catch (Exception ex)
-            {
-                ProcessException(ex, true);
-            }
-
-            return isOk;
+            return fNum;
         }
 
-        private void OnConnectionStateChanged(bool state)
+        private int ClearAllEntries(string rootPath)
         {
-            connectionBtn.Checked = state;
-            settingsBtn.Enabled = !state;
-            logPlaybackBtn.Enabled = !state;
-            emuBtn.Enabled = !state;
-        }
-
-        private void InvokeSetStatusStripLblText(StatusStrip strip, ToolStripStatusLabel lbl, string text)
-        {
-            if (strip.InvokeRequired)
-            {
-                strip.Invoke((MethodInvoker)delegate { lbl.Text = text; });
-            }
-            else
-            {
-                lbl.Text = text;
-            }
-        }
-
-        private void InvokeSetText(ToolStrip strip, ToolStripLabel lbl, string text)
-        {
-            if (strip.InvokeRequired)
-                strip.Invoke((MethodInvoker)delegate { lbl.Text = text; });
-            else
-                lbl.Text = text;
-        }
-
-        private void InvokeSetColorMode(ToolStrip strip, ToolStripLabel lbl, Color foreColor)
-        {
-            if (strip.InvokeRequired)
-                strip.Invoke((MethodInvoker)delegate { lbl.ForeColor = foreColor; });
-            else
-                lbl.ForeColor = foreColor;
-        }
-
-        private void InvokeSetEnabledState(ToolStrip strip, ToolStripItem item, bool enabled)
-        {
-            if (strip.InvokeRequired)
-            {
-                strip.Invoke((MethodInvoker)delegate { item.Enabled = enabled; });
-            }
-            else
-            {
-                item.Enabled = enabled;
-            }
-        }
-
-        private void InvokeSetEnabledState(Control ctrl, bool enabled)
-        {
-            if (ctrl.InvokeRequired)
-            {
-                ctrl.Invoke((MethodInvoker)delegate { ctrl.Enabled = enabled; });
-            }
-            else
-            {
-                ctrl.Enabled = enabled;
-            }
-        }
-
-        private void InvokeUpdateTracksPlot(TrackUpdateEventArgs e, bool isInvalidate)
-        {
-            if (geoPlot.InvokeRequired)
-            {
-                geoPlot.Invoke((MethodInvoker)delegate
-                {
-                    if (!double.IsNaN(e.Course_deg))
-                        geoPlot.AddPoint(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude, e.Course_deg);
-                    else
-                        geoPlot.AddPoint(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude);
-
-                    if (isInvalidate)
-                        geoPlot.Invalidate();
-                });
-            }
-            else
-            {
-                if (!double.IsNaN(e.Course_deg))
-                    geoPlot.AddPoint(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude, e.Course_deg);
-                else
-                    geoPlot.AddPoint(e.TrackID, e.TrackPoint.Latitude, e.TrackPoint.Longitude);
-
-                if (isInvalidate)
-                    geoPlot.Invalidate();
-            }
-        }
-
-        private void InvokeUpdatePlot()
-        {
-            if (geoPlot.InvokeRequired)
-                geoPlot.Invoke((MethodInvoker)delegate { geoPlot.Invalidate(); });
-            else
-                geoPlot.Invalidate();
-        }
-       
-        #endregion        
-
-        #region Handlers
-
-        #region UI controls
-
-        #region primaryToolStrip
-
-        private void connectionBtn_Click(object sender, EventArgs e)
-        {
-            if (aplCore.IsOpen)
+            var dirs = Directory.GetDirectories(rootPath);
+            int dirNum = 0;
+            foreach (var item in dirs)
             {
                 try
                 {
-                    aplCore.Close();
-                    OnConnectionStateChanged(false);
+                    Directory.Delete(item, true);
+                    dirNum++;
                 }
                 catch (Exception ex)
                 {
                     ProcessException(ex, true);
                 }
             }
-            else
-            {
-                try
-                {
-                    aplCore.Open();
-                    OnConnectionStateChanged(true);
-                }
-                catch (Exception ex)
-                {
-                    ProcessException(ex, true);
-                }
-            }
+
+            return dirNum;
         }
 
-        #region TRACK item
 
-        private void trackExportAsBtn_Click(object sender, EventArgs e)
+        #endregion
+
+        #endregion
+
+        #region UI Handlers
+
+        #region mainToolStrip
+        private void linkBtn_Click(object sender, EventArgs e)
+        {
+            if (core.IsActive)
+                core.Stop();
+            else
+                core.Start();
+        }
+
+        private void settingsBtn_Click(object sender, EventArgs e)
         {
             bool isSaved = false;
 
-            using (SaveFileDialog sDilog = new SaveFileDialog())
+            using (SettingsEditor sEditor = new SettingsEditor())
             {
-                sDilog.Title = "Exporting tracks...";
-                sDilog.Filter = "Google KML (*.kml)|*.kml|CSV (*.csv)|*.csv";
-                sDilog.FileName = string.Format("ApostleLBL_Tracks_{0}", StrUtils.GetHMSString());
+                sEditor.Text = string.Format("{0} {1} - SettingsEditor",
+                    appicon, Application.ProductName);
+                sEditor.Value = sProvider.Data;
 
-                if (sDilog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                if (sEditor.ShowDialog() == DialogResult.OK)
                 {
-                    if (sDilog.FilterIndex == 1)
-                        isSaved = TracksExportToKML(sDilog.FileName);
-                    else if (sDilog.FilterIndex == 2)
-                        isSaved = TracksExportToCSV(sDilog.FileName);
+                    sProvider.Data = sEditor.Value;
+
+                    try
+                    {
+                        sProvider.Save(settingsFileName);
+                        isSaved = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        ProcessException(ex, true);
+                    }
                 }
             }
 
             if (isSaved &&
-                MessageBox.Show("Tracks saved, do you want to clear all tracks data?",
-                "Question",
+                MessageBox.Show("Settings has been updated, restart application to apply new settings?",
+                string.Format("{0} {1} - Question",
+                appicon, Application.ProductName),
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) == System.Windows.Forms.DialogResult.Yes)
             {
-                tracks.Clear();
-                TracksChanged = false;
+                isRestart = true;
+                Application.Restart();
             }
         }
 
-        private void trackClearBtn_Click(object sender, EventArgs e)
-        {
-            if (MessageBox.Show("Do you want to clear all tracks data?", "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == System.Windows.Forms.DialogResult.Yes)
-            {
-                tracks.Clear();
-                TracksChanged = false;
-            }
-        }
-
-        #endregion
-
-        #region LOG item
+        #region LOG
 
         private void logViewCurrentBtn_Click(object sender, EventArgs e)
         {
@@ -663,114 +871,270 @@ namespace WAYU
             {
                 ProcessException(ex, true);
             }
-        }        
+        }
 
         private void logPlaybackBtn_Click(object sender, EventArgs e)
         {
-            using (OpenFileDialog oDialog = new OpenFileDialog())
+            if (lPlayer.IsRunning)
             {
-                oDialog.Title = "Select a LOG file to analyze...";
-                oDialog.DefaultExt = "log";
-                oDialog.Filter = "LOG files (*.log)|*.log";
-                oDialog.InitialDirectory = logPath;
-
-                if (oDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                if (MessageBox.Show("log is currently playing, abort?",
+                    string.Format("{0} {1} - Question",
+                    appicon, Application.ProductName),
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    lPlayer.RequestToStop();
+            }
+            else
+            {
+                using (OpenFileDialog oDialog = new OpenFileDialog())
                 {
-                    ProcessAnalyzeLog(oDialog.FileName);
+                    oDialog.Title = string.Format("{0} {1}",
+                        appicon, "Select a log file to playback");
+                    oDialog.DefaultExt = "log";
+                    oDialog.Filter = "Log files (*.log)|*.log";
+
+                    if (oDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                    {
+                        lPlayer.Playback(oDialog.FileName);
+
+                        logPlaybackBtn.Text = string.Format("⏹ {0}", "Stop playback");
+                        settingsBtn.Enabled = false;
+                        linkBtn.Enabled = false;
+                    }
                 }
             }
         }
 
-        private void logClearAllEntriesBtn_Click(object sender, EventArgs e)
+        private void logRemoveEmptyEntriesBtn_Click(object sender, EventArgs e)
         {
-            if (MessageBox.Show("Do you want to delete all log entries?",
-                                "Question", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning) == System.Windows.Forms.DialogResult.Yes)
+            if (MessageBox.Show("All log files less than 2 kb will be deleted, Ok?",
+                string.Format("{0} {1} - Question",
+                appicon,
+                Application.ProductName),
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Question) == DialogResult.OK)
             {
-                string logRootPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "LOG");
-                var dirs = Directory.GetDirectories(logRootPath);
-                int dirNum = 0;
-                foreach (var item in dirs)
-                {
-                    try
-                    {
-                        Directory.Delete(item, true);
-                        dirNum++;
-                    }
-                    catch (Exception ex)
-                    {
-                        ProcessException(ex, true);
-                    }
-                }
+                var fNum = RemoveEmptyEntries(logPath, logger.FileName, 2048);
 
-                MessageBox.Show(string.Format("{0} entries was/were deleted.", dirNum),
-                    "Information",
+                MessageBox.Show(string.Format("{0} {1}", fNum, "files was/were deleted"),
+                    string.Format("{0} {1} - Information",
+                    appicon,
+                    Application.ProductName),
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
             }
         }
 
-        #endregion
-
-        private void settingsBtn_Click(object sender, EventArgs e)
+        private void logArchiveAllBtn_Click(object sender, EventArgs e)
         {
-            using (SettingsEditor sEditor = new SettingsEditor())
+            using (SaveFileDialog sDialog = new SaveFileDialog())
             {
-                sEditor.Text = string.Format("{0} - [Settings Editor]", Application.ProductName);
-                sEditor.Value = settingsProvider.Data;
+                sDialog.Title = string.Format("{0} {1}",
+                    appicon, "Select a file name to compress all log files to");
+                sDialog.Filter = "Zip-archives (*.zip)|*.zip";
+                sDialog.DefaultExt = "zip";
+                sDialog.FileName = string.Format("LOG_Archive_{0}", StrUtils.GetYMDString());
 
-                if (sEditor.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                if (sDialog.ShowDialog() == DialogResult.OK)
                 {
-                    bool isSaved = false;
-                    settingsProvider.Data = sEditor.Value;
-
                     try
                     {
-                        settingsProvider.Save(settingsFileName);
-                        isSaved = true;
+                        ZipFile.CreateFromDirectory(logPath, sDialog.FileName);
+                        StatusHintLinkUpdate(string.Format("{0} {1}",
+                           "All log files comressed to", Path.GetFileName(sDialog.FileName)), sDialog.FileName);
                     }
                     catch (Exception ex)
                     {
                         ProcessException(ex, true);
                     }
-
-                    if ((isSaved) && (MessageBox.Show("Settings saved. Restart application to apply new settings?",
-                        "Question",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Question) == System.Windows.Forms.DialogResult.Yes))
-                    {
-                        isRestart = true;
-                        Application.Restart();
-                    }
                 }
             }
         }
 
-        private void emuBtn_Click(object sender, EventArgs e)
+        private void logDeleteAllBtn_Click(object sender, EventArgs e)
         {
-            if (aplEmu.IsRunning)
+            if (MessageBox.Show("Delete all log files (action cannot be undone)?",
+                                string.Format("{0} {1} - Warning",
+                                appicon, Application.ProductName),
+
+                                MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning) == System.Windows.Forms.DialogResult.Yes)
             {
-                aplEmu.Stop();
-                emuBtn.Checked = false;
-                //connectionBtn.Enabled = true;
-                logPlaybackBtn.Enabled = true;
-                settingsBtn.Enabled = true;
-            }
-            else
-            {
-                aplEmu.Start();
-                emuBtn.Checked = true;
-                //connectionBtn.Enabled = false;
-                logPlaybackBtn.Enabled = false;
-                settingsBtn.Enabled = false;
+
+                var dirNum = ClearAllEntries(logPath);
+
+                MessageBox.Show(string.Format("{0} {1}",
+                    dirNum, "entries was/were deleted"),
+                    string.Format("{0} {1} - Information",
+                    appicon, Application.ProductName),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
             }
         }
+
+        private void logDoThemAllBtn_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Move all log files to an archive?",
+                               string.Format("{0} {1} - Warning",
+                               appicon, Application.ProductName),
+                               MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning) == System.Windows.Forms.DialogResult.Yes)
+            {
+                RemoveEmptyEntries(logPath, logFileName, 2048);
+
+                bool archived = false;
+                using (SaveFileDialog sDialog = new SaveFileDialog())
+                {
+                    sDialog.Title = string.Format("{0} {1}",
+                        appicon, "Select a name of archive to compress all log files to");
+                    sDialog.Filter = "Zip-archives (*.zip)|*.zip";
+                    sDialog.DefaultExt = "zip";
+                    sDialog.FileName = string.Format("LOG_Archive_{0}", StrUtils.GetYMDString());
+
+                    if (sDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        try
+                        {
+                            ZipFile.CreateFromDirectory(logPath, sDialog.FileName);
+                            StatusHintLinkUpdate(string.Format("{0} {1}",
+                           "All log files moved to", Path.GetFileName(sDialog.FileName)), sDialog.FileName);
+
+                            archived = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            ProcessException(ex, true);
+                        }
+                    }
+                }
+
+                if (!archived)
+                {
+                    MessageBox.Show("Some errors occured moving log files to an archive. The archive was not created.",
+                        string.Format("{0} {1} - Error",
+                        appicon, Application.ProductName),
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }
+                else
+                {
+                    ClearAllEntries(logPath);
+                }
+            }
+        }
+
+        #endregion
+
+        #region UTILS
+
+        #region TRACKS
+
+        private void tracksExportAsBtn_Click(object sender, EventArgs e)
+        {
+            bool saved = false;
+            using (SaveFileDialog sDialog = new SaveFileDialog())
+            {
+                sDialog.Title = string.Format("{0} {1}",
+                    appicon, "Exporting tracks...");
+                sDialog.Filter = "KML (*.kml)|*.kml|CSV (*.csv)|*.csv";
+                sDialog.FileName = StrUtils.GetHMSString();
+
+                if (sDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        // KML
+                        if (sDialog.FilterIndex == 1)
+                        {
+                            tManager.ExportToKML(sDialog.FileName);
+                            saved = true;
+                        }
+                        // CSV
+                        else if (sDialog.FilterIndex == 2)
+                        {
+                            tManager.ExportToCSV(sDialog.FileName);
+                            saved = true;
+                        }
+
+                        StatusHintLinkUpdate(string.Format("{0} {1}",
+                           "All tracks were saved to", Path.GetFileName(sDialog.FileName)), sDialog.FileName);
+
+                    }
+                    catch (Exception ex)
+                    {
+                        ProcessException(ex, true);
+                    }
+                }
+            }
+
+            if (saved)
+            {
+                if (MessageBox.Show("Tracks saved. Clear all tracks data?",
+                    string.Format("{0} {1} - Question", appicon, Application.ProductName),
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question) == DialogResult.Yes)
+                    tManager.Clear();
+
+            }
+        }
+
+        private void trackImportBtn_Click(object sender, EventArgs e)
+        {
+            //
+        }
+        private void tracksClearAllBtn_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Clear all tracks data?",
+                string.Format("{0} {1} - Question", appicon, Application.ProductName),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) == DialogResult.Yes)
+                tManager.Clear();
+        }
+
+
+        #endregion
+
+        #region OVERRIDE
+
+        private void ovrSalinityBtn_Click(object sender, EventArgs e)
+        {
+            using (NumDialog nDialog = new NumDialog())
+            {
+                nDialog.Text = string.Format("{0} {1} - Override water salinity",
+                    appicon, Application.ProductName);
+                nDialog.ValueCaption = "Water salinity, PSU";
+                nDialog.MaxValue = 40;
+                nDialog.MinValue = 0;
+                nDialog.Value = core.Salinity_psu;
+
+                if (nDialog.ShowDialog() == DialogResult.OK)
+                    core.Salinity_psu = nDialog.Value;
+            }
+        }
+
+        private void ovrWaterTemperatureBtn_Click(object sender, EventArgs e)
+        {
+            using (NumDialog nDialog = new NumDialog())
+            {
+                nDialog.Text = string.Format("{0} {1} - Override water temperature",
+                    appicon, Application.ProductName);
+                nDialog.ValueCaption = "Water temperature, °C";
+                nDialog.MaxValue = 40;
+                nDialog.MinValue = -4;
+                nDialog.Value = core.WaterTemperature_C;
+
+                if (nDialog.ShowDialog() == DialogResult.OK)
+                    core.WaterTemperature_C = nDialog.Value;
+            }
+        }
+
+        #endregion
+
+        #endregion
 
         private void infoBtn_Click(object sender, EventArgs e)
         {
             using (AboutBox aDialog = new AboutBox())
             {
                 aDialog.ApplyAssembly(Assembly.GetExecutingAssembly());
-                aDialog.Weblink = "www.unavlab.com";
+                aDialog.Weblink = "https://docs.unavlab.com";// www.docs.unavlab.com";
                 aDialog.ShowDialog();
             }
         }
@@ -781,39 +1145,225 @@ namespace WAYU
 
         private void markPointBtn_Click(object sender, EventArgs e)
         {
-            aplCore.MarkTargetLocation();
+            core.MarkTargetLocation();
         }
 
-        private void autoscreenshotBtn_Click(object sender, EventArgs e)
+        private void markedPointsVisible_Click(object sender, EventArgs e)
         {
-            isAutoScreenshot = !isAutoScreenshot;
-            autoscreenshotBtn.Checked = isAutoScreenshot;
-        }       
+            markedPointsVisible = !markedPointsVisible;
+            logger.Write(uiAutomation.GetBoolPropertyStateLogString<MainForm>(this, nameof(markedPointsVisible)));
+        }
+
+        private void buoysVisibleBtn_Click(object sender, EventArgs e)
+        {
+            buoysVisible = !buoysVisible;
+            logger.Write(uiAutomation.GetBoolPropertyStateLogString<MainForm>(this, nameof(buoysVisible)));
+        }
+
+        private void historyVisibleBtn_Click(object sender, EventArgs e)
+        {
+            historyVisible = !historyVisible;
+            logger.Write(uiAutomation.GetBoolPropertyStateLogString<MainForm>(this, nameof(historyVisible)));
+        }
+
+        private void plotLegendVisibleBtn_Click(object sender, EventArgs e)
+        {
+            plotLegendVisible = !plotLegendVisible;
+            logger.Write(uiAutomation.GetBoolPropertyStateLogString<MainForm>(this, nameof(plotLegendVisible)));
+        }
+
+        private void notesVisibleBtn_Click(object sender, EventArgs e)
+        {
+            notesVisible = !notesVisible;
+            logger.Write(uiAutomation.GetBoolPropertyStateLogString<MainForm>(this, nameof(notesVisible)));
+        }
+
+        private void extraInfoVisibleBtn_Click(object sender, EventArgs e)
+        {
+            extraInfoVisible = !extraInfoVisible;
+            logger.Write(uiAutomation.GetBoolPropertyStateLogString<MainForm>(this, nameof(extraInfoVisible)));
+        }
+
+        private void followMapBtn_Click(object sender, EventArgs e)
+        {
+            followTarget = !followTarget;
+            logger.Write(uiAutomation.GetPropertyStateLogString<MainForm>(this, nameof(followTarget)));
+        }
+
+        private void showTilesBtn_Click(object sender, EventArgs e)
+        {
+            showTiles = !showTiles;
+            logger.Write(uiAutomation.GetPropertyStateLogString<MainForm>(this, nameof(showTiles)));
+        }
+
+        private void resetViewBtn_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Clear current plot? This action will not change the tracks.",
+                string.Format("{0} {1} - Question", appicon, Application.ProductName),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                plot.Clear();
+                plot.Invalidate();
+            }            
+        }
+
+        #region Accuracy estimation group
+
+        private void accuracyEstimationStartStopBtn_Click(object sender, EventArgs e)
+        {
+            if (core.StatHelperActive)
+                core.AccuracyEstimationStop();
+            else
+                core.AccuracyEstimationStart();
+        }
+
+        private void accuracyEstimationClearDataBtn_Click(object sender, EventArgs e)
+        {
+            core.AccuracyEstimationDiscard();
+        }
 
         #endregion
 
-        #region plotStrip
-
-        private void zoomByCbx_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            var ztrackkey = fitTracksCbx.SelectedItem.ToString();
-            if (ztrackkey == "ALL")
+        private void navPointCbx_SelectedIndexChanged(object sender, EventArgs e)
+        {           
+            if (core != null)
             {
-                geoPlot.SetTracksVisibility(true);
+                core.BasePointTypeToNavigate = navigateToBasePoint;
+                usProvider.Data.BasePointTypeToNavigate = navigateToBasePoint;
+
+                if (navigateToBasePoint == BasePointType.Specified)
+                {
+                    using (SelectLocationDialog sDialog = new SelectLocationDialog())
+                    {
+                        sDialog.Text = "Specify a point to use as a reference";
+                        sDialog.SetPoints(tManager.GetTrack2D(APL.APL.MarkedPointsTrackID));
+                        var currentLocation = core.GetLocation();
+                        sDialog.Latitude = currentLocation.Latitude;
+                        sDialog.Longitude = currentLocation.Longitude;
+
+                        if (sDialog.ShowDialog() == DialogResult.OK)
+                        {
+                            core.SetBasePointToNavigate(sDialog.Latitude, sDialog.Longitude, true);
+                        }
+                        else
+                        {                            
+                            navigateToBasePoint = BasePointType.Base_1;
+                        }
+                    }
+                }
+            }
+        }
+
+        #endregion
+
+        #region bottomToolStrip
+
+        private void noteTxb_KeyDown(object sender, KeyEventArgs e)
+        {
+            if ((e.KeyCode == Keys.Enter) &&
+                (!string.IsNullOrEmpty(noteTxb.Text)))
+                noteSaveBtn_Click(noteTxb, EventArgs.Empty);
+        }
+
+        private void noteTxb_TextChanged(object sender, EventArgs e)
+        {
+            noteSaveBtn.Enabled = !string.IsNullOrWhiteSpace(noteTxb.Text);
+        }
+
+        private void noteSaveBtn_Click(object sender, EventArgs e)
+        {
+            logger.Write(string.Format("NOTE: \"{0}\"", noteTxb.Text));
+            plot.RightUpperTextSet(noteTxb.Text);
+            noteTxb.Clear();
+        }
+
+        private void screenShotBtn_Click(object sender, EventArgs e)
+        {
+            var res = SaveFullScreenshot();
+            var splits = res.Split(new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+            if (splits.Length >= 2)
+                StatusHintLinkUpdate(splits[0], splits[1]);
+        }
+
+        private void autoscreenshotsBtn_Click(object sender, EventArgs e)
+        {
+            autoscreenshotEnabled = !autoscreenshotEnabled;
+
+            if (autoscreenshotEnabled)
+                StartAutoscreenShots();
+            else
+                StopAutoscreenShots();            
+        }
+
+        #endregion
+
+        #region bottomSecondaryToolStrip
+
+        private void serialOutputPortsRefreshBtn_Click(object sender, EventArgs e)
+        {
+            serialOutputPortNameCbx.Items.Clear();
+            serialOutputPortNameCbx.Items.AddRange(SerialPort.GetPortNames());
+            if (serialOutputPortNameCbx.Items.Count > 0)
+            {
+                serialOutputPortNameCbx.SelectedIndex = 0;                
+            }
+
+            serialOutputLinkBtn.Enabled = serialOutputPortNameCbx.Items.Count > 0;
+        }        
+
+        private void serialOutputLinkBtn_Click(object sender, EventArgs e)
+        {
+            if (core.SerialOutputEnabled)
+            {
+                if (sender != null)
+                    core.SerialOutputDeInit();
+                else
+                    core.SerialOutputClose();
             }
             else
             {
-                var splits = ztrackkey.Split(new char[] { '+' });
-                geoPlot.SetTracksVisibility(splits, true);
+                try
+                {
+                    core.SerialOutputInit(serialOutputPortName, sProvider.Data.SerialOutputBaudrate);
+                }
+                catch (Exception ex)
+                {
+                    ProcessException(ex, true);
+                }
             }
-
-            geoPlot.Invalidate();
         }
 
-        private void isHistoryLinesVisibleBtn_Click(object sender, EventArgs e)
+        private void zoomOutBtn_Click(object sender, EventArgs e)
         {
-            geoPlot.HistoryVisible = !geoPlot.HistoryVisible;
-            isHistoryLinesVisibleBtn.Checked = geoPlot.HistoryVisible;
+            plot.ZoomOut();
+        }
+
+        private void zoomInBtn_Click(object sender, EventArgs e)
+        {
+            plot.ZoomIn();
+        }
+
+
+        #endregion
+
+        #region mainStatusStrip
+
+        private void bottomLinkLbl_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (bottomLinkLbl.Tag != null)
+                {
+                    var fpath = (string)bottomLinkLbl.Tag;
+                    if (!string.IsNullOrEmpty(fpath))
+                        Process.Start(fpath);
+                }
+            }
+            catch (Exception ex)
+            {
+                ProcessException(ex, true);
+            }
         }
 
         #endregion
@@ -822,57 +1372,153 @@ namespace WAYU
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (tracksChanged)
+            if (tManager.Changed)
             {
-                System.Windows.Forms.DialogResult result = System.Windows.Forms.DialogResult.Yes;
-                while (tracksChanged && (result == System.Windows.Forms.DialogResult.Yes))
+                DialogResult dResult = DialogResult.Yes;
+                while (tManager.Changed && (dResult == DialogResult.Yes))
                 {
-                    result = MessageBox.Show("Tracks are not saved. Save them before exit?",
-                        "Warning",
-                        MessageBoxButtons.YesNoCancel,
-                        MessageBoxIcon.Warning);
-                    
-                    if (result == System.Windows.Forms.DialogResult.Yes)
-                        trackExportAsBtn_Click(sender, null);
+                    dResult = MessageBox.Show("Save tracks before exit?",
+                    string.Format("{0} {1} - Question", appicon, Application.ProductName),
+                    isRestart ? MessageBoxButtons.YesNo : MessageBoxButtons.YesNoCancel,
+                    MessageBoxIcon.Question);
+
+                    if (dResult == DialogResult.Yes)
+                        tracksExportAsBtn_Click(tracksExportAsBtn, EventArgs.Empty);
                 }
 
-                e.Cancel = (result == System.Windows.Forms.DialogResult.Cancel);
+                if (dResult == DialogResult.Cancel)
+                    e.Cancel = true;
             }
             else
             {
-                e.Cancel = !isRestart && (MessageBox.Show(string.Format("Close {0}?", Application.ProductName),
-                                                          "Question",
-                                                          MessageBoxButtons.YesNo,
-                                                          MessageBoxIcon.Question) != System.Windows.Forms.DialogResult.Yes);
+                e.Cancel = !isRestart &&
+                    (MessageBox.Show("Close application?",
+                    string.Format("{0} {1} - Question", appicon, Application.ProductName),
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question) != DialogResult.Yes);
+            }
+
+            if (!e.Cancel)
+            {
+                //core.Close();
             }
         }
 
         private void MainForm_FormClosed(object sender, FormClosedEventArgs e)
         {
-            if (aplCore != null)
-            {
-                if (aplCore.IsOpen)
-                {
-                    try
-                    {
-                        aplCore.Open();
-                    }
-                    catch (Exception ex)
-                    {
-                        ProcessException(ex, false);
-                    }
-                }
-
-                aplCore.Dispose();
-            }            
-
-            logger.Write("Closing application...");
             logger.FinishLog();
             logger.Flush();
-        }        
 
-        #endregion                                        
-        
+            #region UISettings
+
+            usProvider.Data.WindowState = this.WindowState;
+            usProvider.Data.WindowSize = this.Size;
+            usProvider.Data.WindowLocation = this.Location;
+
+            usProvider.Save(uiSettingsFileName);
+
+            #endregion
+        }
+
+        private void MainForm_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Control)
+            {
+                if (e.KeyCode == Keys.P)
+                {
+                    screenShotBtn_Click(screenShotBtn, null);
+                    e.SuppressKeyPress = true;
+                }                
+                else if (e.KeyCode == Keys.S)
+                {
+                    if (utilsTracksBtn.Enabled)
+                        tracksExportAsBtn_Click(tracksExportAsBtn, EventArgs.Empty);
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.KeyCode == Keys.L)
+                {
+                    if (linkBtn.Enabled)
+                        linkBtn_Click(linkBtn, null);
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.KeyCode == Keys.M)
+                {
+                    markPointBtn_Click(markPointBtn, null);
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.KeyCode == Keys.H)
+                {
+                    logViewCurrentBtn_Click(logViewCurrentBtn, EventArgs.Empty);
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.KeyCode == Keys.F)
+                {
+                    followMapBtn_Click(followMapBtn, EventArgs.Empty);
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.KeyCode == Keys.T)
+                {
+                    showTilesBtn_Click(showTilesBtn, EventArgs.Empty);
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.KeyCode == Keys.D1)
+                {
+                    throw new NotImplementedException();
+                }
+                else if (e.KeyCode == Keys.D2)
+                {
+                    throw new NotImplementedException();
+                }
+                else if (e.KeyCode == Keys.D3)
+                {
+                    throw new NotImplementedException();
+                }
+                else if (e.KeyCode == Keys.D4)
+                {
+                    throw new NotImplementedException();
+                }
+                else if (e.KeyCode == Keys.A)
+                {
+                    throw new NotImplementedException();
+                }
+                else if (e.KeyCode == Keys.O)
+                {
+                    if (settingsBtn.Enabled)
+                        settingsBtn_Click(settingsBtn, EventArgs.Empty);
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.KeyCode == Keys.Add)
+                {
+                    zoomInBtn_Click(zoomInBtn, EventArgs.Empty);
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.KeyCode == Keys.Subtract)
+                {
+                    zoomOutBtn_Click(zoomOutBtn, EventArgs.Empty);
+                    e.SuppressKeyPress = true;
+                }
+            }
+
+            if (!e.SuppressKeyPress)
+            {
+                if (!noteTxb.Focused)
+                    noteTxb.Focus();
+            }
+        }
+
+        #endregion
+
+        #region plot
+
+        private void plot_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            if (core.LocationPresent)
+            {
+                var location = core.GetLocation();
+                plot.SetCenter(location.Latitude, location.Longitude);
+            }
+        }
+
         #endregion
 
         #endregion        

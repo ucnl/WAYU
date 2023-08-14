@@ -1,17 +1,17 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{E2C3B6A3-0AEE-48BF-9239-B94BCC460016}</ProjectGuid>
+    <ProjectGuid>{8B3E5380-0BD6-4222-B999-F337635216C9}</ProjectGuid>
     <OutputType>WinExe</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>WAYU</RootNamespace>
     <AssemblyName>WAYU</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <TargetFrameworkProfile />
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -37,53 +37,84 @@
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.IO.Compression.ZipFile, Version=4.0.2.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+      <HintPath>packages\System.IO.Compression.ZipFile.4.3.0\lib\net46\System.IO.Compression.ZipFile.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Net.Http" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="UCNLDrivers">
-      <HintPath>..\..\..\UCNLLibs\UCNLDrivers\UCNLDrivers\bin\Release\UCNLDrivers.dll</HintPath>
+      <HintPath>..\..\UCNLLibs\UCNLDrivers\UCNLDrivers\bin\Release\UCNLDrivers.dll</HintPath>
     </Reference>
     <Reference Include="UCNLKML">
-      <HintPath>..\..\..\UCNLLibs\UCNLKML\UCNLKML\bin\Release\UCNLKML.dll</HintPath>
+      <HintPath>..\..\UCNLLibs\UCNLKML\UCNLKML\bin\Release\UCNLKML.dll</HintPath>
     </Reference>
     <Reference Include="UCNLNav">
-      <HintPath>..\..\..\UCNLLibs\UCNLNav\UCNLNav\bin\Release\UCNLNav.dll</HintPath>
+      <HintPath>..\..\UCNLLibs\UCNLNav\UCNLNav\bin\Release\UCNLNav.dll</HintPath>
     </Reference>
     <Reference Include="UCNLNMEA">
-      <HintPath>..\..\..\UCNLLibs\UCNLNMEA\UCNLNMEA\bin\Release\UCNLNMEA.dll</HintPath>
+      <HintPath>..\..\UCNLLibs\UCNLNMEA\UCNLNMEA\bin\Release\UCNLNMEA.dll</HintPath>
     </Reference>
     <Reference Include="UCNLPhysics">
-      <HintPath>..\..\..\UCNLLibs\UCNLPhysics\UCNLPhysics\bin\Release\UCNLPhysics.dll</HintPath>
+      <HintPath>..\..\UCNLLibs\UCNLPhysics\UCNLPhysics\bin\Release\UCNLPhysics.dll</HintPath>
     </Reference>
     <Reference Include="UCNLSalinity">
-      <HintPath>..\..\..\UCNLLibs\UCNLSalinity\UCNLSalinity\bin\Release\UCNLSalinity.dll</HintPath>
+      <HintPath>..\..\UCNLLibs\UCNLSalinity\UCNLSalinity\bin\Release\UCNLSalinity.dll</HintPath>
     </Reference>
     <Reference Include="UCNLUI">
-      <HintPath>..\..\..\UCNLLibs\UCNLUI\UCNLUI\bin\Release\UCNLUI.dll</HintPath>
+      <HintPath>..\..\UCNLLibs\UCNLUI\UCNLUI\bin\Release\UCNLUI.dll</HintPath>
     </Reference>
     <Reference Include="uOSM">
-      <HintPath>..\..\..\UCNLLibs\uOSM\uOSM\bin\Release\uOSM.dll</HintPath>
+      <HintPath>..\..\UCNLLibs\uOSM\uOSM\bin\Release\uOSM.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="APL\APLBaseProcessor.cs" />
-    <Compile Include="APL\APLEmulator.cs" />
-    <Compile Include="APL\APLLBLCore.cs" />
+    <Compile Include="APL\APL.cs" />
+    <Compile Include="APL\APLBasesProcessor.cs" />
+    <Compile Include="APL\APLCore.cs" />
+    <Compile Include="APL\APLPort.cs" />
+    <Compile Include="APL\DHFilter.cs" />
+    <Compile Include="APL\StatHelper.cs" />
+    <Compile Include="ExtraUI\NumDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ExtraUI\NumDialog.Designer.cs">
+      <DependentUpon>NumDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ExtraUI\SelectLocationDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ExtraUI\SelectLocationDialog.Designer.cs">
+      <DependentUpon>SelectLocationDialog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ExtraUI\SettingsEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ExtraUI\SettingsEditor.Designer.cs">
+      <DependentUpon>SettingsEditor.cs</DependentUpon>
+    </Compile>
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="MainForm.designer.cs">
+    <Compile Include="MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SettingsContainer.cs" />
-    <Compile Include="SettingsEditor.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="SettingsEditor.designer.cs">
+    <Compile Include="UISettingsContainer.cs" />
+    <EmbeddedResource Include="ExtraUI\NumDialog.resx">
+      <DependentUpon>NumDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ExtraUI\SelectLocationDialog.resx">
+      <DependentUpon>SelectLocationDialog.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ExtraUI\SettingsEditor.resx">
       <DependentUpon>SettingsEditor.cs</DependentUpon>
-    </Compile>
-    <Compile Include="UIUtils.cs" />
+    </EmbeddedResource>
     <EmbeddedResource Include="MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
     </EmbeddedResource>
@@ -95,11 +126,8 @@
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
-      <DesignTime>True</DesignTime>
     </Compile>
-    <EmbeddedResource Include="SettingsEditor.resx">
-      <DependentUpon>SettingsEditor.cs</DependentUpon>
-    </EmbeddedResource>
+    <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
@@ -113,12 +141,6 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
 </Project>
