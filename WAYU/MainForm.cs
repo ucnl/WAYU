@@ -1,12 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.IO.Ports;
 using System.Net;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using UCNLDrivers;
@@ -204,7 +207,7 @@ namespace WAYU
             logger.TextAddedEvent += (o, e) => InvokeAppendHistoryLine(e.Text);
 
             #endregion
-            
+
             #region settings
 
             sProvider = new SimpleSettingsProviderXML<SettingsContainer>();
@@ -241,7 +244,7 @@ namespace WAYU
                     tileDBPath,
                     sProvider.Data.TileServers);
 
-                tProvider.DownloadingEnabled = sProvider.Data.EnableTilesDownloading;           
+                tProvider.DownloadingEnabled = sProvider.Data.EnableTilesDownloading;
             }
 
             #endregion
@@ -249,7 +252,11 @@ namespace WAYU
             #region tManager
 
             tManager = new TrackManager();
-            tManager.IsEmptyChanged += (o, e) => UIHelpers.InvokeSetEnabledState(mainToolStrip, utilsTracksBtn, !tManager.IsEmpty);
+            tManager.IsEmptyChanged += (o, e) =>
+            {
+                UIHelpers.InvokeSetEnabledState(mainToolStrip, tracksExportAsBtn, !tManager.IsEmpty);
+                UIHelpers.InvokeSetEnabledState(mainToolStrip, tracksClearAllBtn, !tManager.IsEmpty);
+            };
             tManager.IsEmptyChanged(this, EventArgs.Empty);
 
             #endregion
@@ -265,15 +272,15 @@ namespace WAYU
             SwitchOutputPortUIEnabledState(false);
 
             plot.InitTrack(APL.APL.WAYULocationTrackID, sProvider.Data.TrackPointsToShow, Color.Red, 8, 1, true);
-            plot.InitTrack(APL.APL.BuoysTracksIDs[0],     4, Color.DarkRed,    8, 1, false);
-            plot.InitTrack(APL.APL.BuoysTracksIDs[1],     4, Color.DarkOrange, 8, 1, false);
-            plot.InitTrack(APL.APL.BuoysTracksIDs[2],     4, Color.Green,      8, 1, false);
-            plot.InitTrack(APL.APL.BuoysTracksIDs[3],     4, Color.Purple,     8, 1, false);
-            plot.InitTrack(APL.APL.MarkedPointsTrackID, 256, Color.Black,      8, 1, false);
+            plot.InitTrack(APL.APL.BuoysTracksIDs[0], 4, Color.DarkRed, 8, 1, false);
+            plot.InitTrack(APL.APL.BuoysTracksIDs[1], 4, Color.DarkOrange, 8, 1, false);
+            plot.InitTrack(APL.APL.BuoysTracksIDs[2], 4, Color.Green, 8, 1, false);
+            plot.InitTrack(APL.APL.BuoysTracksIDs[3], 4, Color.Purple, 8, 1, false);
+            plot.InitTrack(APL.APL.MarkedPointsTrackID, 256, Color.Black, 8, 1, false);
 
             if (sProvider.Data.IsUseAUXGNSS)
                 plot.InitTrack(APL.APL.AuxGNSSTrackID, 64, Color.Blue, 8, 1, true);
-            
+
             if (tProvider != null)
                 plot.ConnectTileProvider(tProvider);
 
@@ -361,6 +368,7 @@ namespace WAYU
                 sProvider.Data.DHFilterFIFOSize, sProvider.Data.DHFilterMaxSpeed_mps, sProvider.Data.DHFilterRangeThreshold_m);
 
             core.Salinity_psu = sProvider.Data.Salinity_PSU;
+            core.WaterTemperature_C = sProvider.Data.WaterTemperature_C;
             core.IsAutoSalinity = sProvider.Data.IsAutoSalinity;
             core.SoundSpeed_mps = sProvider.Data.SoundSpeed_mps;
             core.IsAutoSoundSpeed = sProvider.Data.IsAutoSoundSpeed;
@@ -380,7 +388,7 @@ namespace WAYU
                 if (e.TrackID != APL.APL.WAYURawLocationTrackID)
                     InvokeAddPoint(e);
 
-                if (e.TrackID == APL.APL.WAYULocationTrackID) 
+                if (e.TrackID == APL.APL.WAYULocationTrackID)
                     InvokeCheckAutocenterCenterPlot(e.Latitude_deg, e.Longitude_deg);
             };
 
@@ -423,7 +431,7 @@ namespace WAYU
                 }
             };
 
-            core.StateUpdated += (o, e) => InvokeSetLeftUpperText(core.GetSystemDescription());
+            core.StateUpdated += (o, e) => InvokeSetLeftUpperText(core.GetSystemDescription() + core.GetDelayStatistics());
 
             core.StatHelperActiveChanged += (o, e) =>
             {
@@ -567,8 +575,8 @@ namespace WAYU
         private void InvokeSetLeftUpperText(string text)
         {
             if (plot.InvokeRequired)
-                plot.Invoke((MethodInvoker)delegate 
-                {  
+                plot.Invoke((MethodInvoker)delegate
+                {
                     plot.LeftUpperText = text;
                     plot.Invalidate();
                 });
@@ -657,7 +665,7 @@ namespace WAYU
 
             uTimer.Start();
         }
-        
+
         private void StopAutoscreenShots()
         {
             uTimer.Stop();
@@ -904,6 +912,126 @@ namespace WAYU
             }
         }
 
+        private void logBuildEmulationDataBtn_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog oDialog = new OpenFileDialog())
+            {
+                oDialog.Title = string.Format("{0} {1}",
+                    appicon, "Select a log file to build emulation data");
+                oDialog.DefaultExt = "log";
+                oDialog.Filter = "Log files (*.log)|*.log";
+
+                if (oDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    bool parsed = false;
+                    List<Tuple<double, string>> lp_result = new List<Tuple<double, string>>();
+
+                    try
+                    {
+                        lp_result = lPlayer.ParseLog(oDialog.FileName);
+                        parsed = true;
+                        
+                    }
+                    catch (Exception ex)
+                    {
+                        ProcessException(ex, true);
+                    }
+
+                    if (parsed)
+                    {
+
+                        List<string> sres = new List<string>();
+
+                        double fts = lp_result[0].Item1;
+
+                        for (int i = 0; i < lp_result.Count; i++)
+                        {
+                            var sec = lp_result[i].Item1 - fts;
+                            var str = lp_result[i].Item2;
+
+                            if (str.StartsWith("(INFO)"))
+                            {
+                                int idx = str.IndexOf(' ');
+                                if (idx >= 0)
+                                {
+                                    str = str.Substring(idx).Trim();
+
+                                    bool isAPLA = core.JustParseEmuLine(str, out BaseIDs bID, out double bLat, out double bLon, out double bDpt, out double bBat, out double bTOA);
+
+                                    if (isAPLA)
+                                    {
+                                        var line = string.Format(
+                                            CultureInfo.InvariantCulture,
+                                            "{{ {0:F03}, {1}, {2:F06}, {3:F06}, {4:F06} }}",
+                                            sec, (int)bID, bLat, bLon, bTOA);
+
+                                        if (i != lp_result.Count - 1)
+                                            line += ",";                                      
+
+                                        sres.Add(line);
+                                    }
+                                }
+                            }
+                        }
+
+                        var dsize = sres.Count;
+                        if (dsize > 0)
+                        {
+                            StringBuilder sb = new StringBuilder();
+                            var sStart = 
+
+                            /*
+                            #define EMU_DATA_SIZE (XXX)
+                            // Second, bID, lat, lon, toa
+                            const PROGMEM float data[DATA_SIZE][5] = {
+                            { 0.095950, 0, 48.976069, 44.740133, 0.09595 }, 
+                            .....
+                            }
+                            */
+
+                            sb.Append("// WAYU AUTOGENERATED CODE -->\r\n");
+                            sb.AppendFormat("#define EMU_DATA_SIZE ({0})\r\n", dsize);
+                            sb.Append("const PROGMEM float emu_data[EMU_DATA_SIZE][5] = {\r\n");
+
+                            foreach (var item in sres)
+                                sb.AppendLine(item);
+
+                            sb.Append("};\r\n");
+                            sb.Append("// END OF WAYU AUTOGENERATED CODE\r\n");
+
+                            using (SaveFileDialog sDialog = new SaveFileDialog())
+                            {
+                                sDialog.Title = string.Format("{0} {1}",
+                                   appicon, "Specify the name of the C-file to store the emulation data");
+                                sDialog.DefaultExt = "c";
+                                sDialog.Filter = "C-files (*.c)|*.c";
+
+                                if (sDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                                {
+                                    try
+                                    {
+                                        File.WriteAllText(sDialog.FileName, sb.ToString());
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        ProcessException(ex, true);
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            MessageBox.Show("There was no data for emulation found in the specified log file",
+                                string.Format("{0} {1} - Information",
+                                appicon, Application.ProductName),
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+
+                    }
+                }
+            }
+        }
+
         private void logRemoveEmptyEntriesBtn_Click(object sender, EventArgs e)
         {
             if (MessageBox.Show("All log files less than 2 kb will be deleted, Ok?",
@@ -1077,7 +1205,34 @@ namespace WAYU
 
         private void trackImportBtn_Click(object sender, EventArgs e)
         {
-            //
+            bool isOk = false;
+
+            using (OpenFileDialog oDialog = new OpenFileDialog())
+            {
+                oDialog.Title = string.Format("{0} {1}",
+                    appicon, "Importing tracks...");
+                oDialog.Filter = "KML (*.kml)|*.kml";
+
+                if (oDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        tManager.ImportFromKML(oDialog.FileName);
+                        isOk = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        ProcessException(ex, true);
+                    }
+                }
+
+                if (isOk)
+                    MessageBox.Show(string.Format("Data was imported from {0}", oDialog.FileName),
+                        string.Format("{0} {1} - Information", appicon, Application.ProductName),
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+
+            }
         }
         private void tracksClearAllBtn_Click(object sender, EventArgs e)
         {
@@ -1102,6 +1257,7 @@ namespace WAYU
                 nDialog.ValueCaption = "Water salinity, PSU";
                 nDialog.MaxValue = 40;
                 nDialog.MinValue = 0;
+                nDialog.DecimalPlaces = 1;
                 nDialog.Value = core.Salinity_psu;
 
                 if (nDialog.ShowDialog() == DialogResult.OK)
@@ -1118,6 +1274,7 @@ namespace WAYU
                 nDialog.ValueCaption = "Water temperature, °C";
                 nDialog.MaxValue = 40;
                 nDialog.MinValue = -4;
+                nDialog.DecimalPlaces = 1;
                 nDialog.Value = core.WaterTemperature_C;
 
                 if (nDialog.ShowDialog() == DialogResult.OK)
@@ -1205,7 +1362,7 @@ namespace WAYU
             {
                 plot.Clear();
                 plot.Invalidate();
-            }            
+            }
         }
 
         #region Accuracy estimation group
@@ -1226,7 +1383,7 @@ namespace WAYU
         #endregion
 
         private void navPointCbx_SelectedIndexChanged(object sender, EventArgs e)
-        {           
+        {
             if (core != null)
             {
                 core.BasePointTypeToNavigate = navigateToBasePoint;
@@ -1247,7 +1404,7 @@ namespace WAYU
                             core.SetBasePointToNavigate(sDialog.Latitude, sDialog.Longitude, true);
                         }
                         else
-                        {                            
+                        {
                             navigateToBasePoint = BasePointType.Base_1;
                         }
                     }
@@ -1288,12 +1445,28 @@ namespace WAYU
 
         private void autoscreenshotsBtn_Click(object sender, EventArgs e)
         {
-            autoscreenshotEnabled = !autoscreenshotEnabled;
-
-            if (autoscreenshotEnabled)
-                StartAutoscreenShots();
+            if (!autoscreenshotEnabled)
+            {
+                if (MessageBox.Show(
+                    "Enable automatic scneen shot every 1 second? Frames will be saved to AUTOSNAPSHOTS folder",
+                    string.Format("{0} {1} - Question", appicon, Application.ProductName),
+                    MessageBoxButtons.OKCancel, MessageBoxIcon.Question) == DialogResult.OK)
+                {
+                    autoscreenshotEnabled = true;
+                    StartAutoscreenShots();
+                }
+            }
             else
-                StopAutoscreenShots();            
+            {
+                if (MessageBox.Show(
+                    string.Format("Stop automatic scneen shot every 1 second? {0} Frames are saved to {1}", autoscreenshot_idx, autoscreenshots_path),
+                    string.Format("{0} {1} - Question", appicon, Application.ProductName),
+                    MessageBoxButtons.OKCancel, MessageBoxIcon.Question) == DialogResult.OK)
+                {
+                    autoscreenshotEnabled = false;
+                    StopAutoscreenShots();
+                }
+            }
         }
 
         #endregion
@@ -1306,11 +1479,11 @@ namespace WAYU
             serialOutputPortNameCbx.Items.AddRange(SerialPort.GetPortNames());
             if (serialOutputPortNameCbx.Items.Count > 0)
             {
-                serialOutputPortNameCbx.SelectedIndex = 0;                
+                serialOutputPortNameCbx.SelectedIndex = 0;
             }
 
             serialOutputLinkBtn.Enabled = serialOutputPortNameCbx.Items.Count > 0;
-        }        
+        }
 
         private void serialOutputLinkBtn_Click(object sender, EventArgs e)
         {
@@ -1343,7 +1516,6 @@ namespace WAYU
         {
             plot.ZoomIn();
         }
-
 
         #endregion
 
@@ -1400,7 +1572,14 @@ namespace WAYU
 
             if (!e.Cancel)
             {
-                //core.Close();
+                if (core.IsActive)
+                    core.Stop();
+
+                if (autoscreenshotEnabled)
+                {
+                    autoscreenshotEnabled = false;
+                    StopAutoscreenShots();
+                }
             }
         }
 
@@ -1412,8 +1591,12 @@ namespace WAYU
             #region UISettings
 
             usProvider.Data.WindowState = this.WindowState;
-            usProvider.Data.WindowSize = this.Size;
-            usProvider.Data.WindowLocation = this.Location;
+
+            if (this.WindowState == FormWindowState.Normal)
+            {
+                usProvider.Data.WindowSize = this.Size;
+                usProvider.Data.WindowLocation = this.Location;
+            }
 
             usProvider.Save(uiSettingsFileName);
 
@@ -1422,80 +1605,105 @@ namespace WAYU
 
         private void MainForm_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Control)
+            if (!e.Alt)
             {
-                if (e.KeyCode == Keys.P)
+                if (e.Control && !e.Shift)
                 {
-                    screenShotBtn_Click(screenShotBtn, null);
-                    e.SuppressKeyPress = true;
-                }                
-                else if (e.KeyCode == Keys.S)
-                {
-                    if (utilsTracksBtn.Enabled)
-                        tracksExportAsBtn_Click(tracksExportAsBtn, EventArgs.Empty);
-                    e.SuppressKeyPress = true;
+                    if (e.KeyCode == Keys.P)
+                    {
+                        screenShotBtn_Click(screenShotBtn, null);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.S)
+                    {
+                        if (utilsTracksBtn.Enabled)
+                            tracksExportAsBtn_Click(tracksExportAsBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.L)
+                    {
+                        if (linkBtn.Enabled)
+                            linkBtn_Click(linkBtn, null);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.M)
+                    {
+                        markPointBtn_Click(markPointBtn, null);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.H)
+                    {
+                        logViewCurrentBtn_Click(logViewCurrentBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.F)
+                    {
+                        followMapBtn_Click(followMapBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.T)
+                    {
+                        showTilesBtn_Click(showTilesBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.D1)
+                    {
+                        navigateToBasePoint = BasePointType.Base_1;
+                    }
+                    else if (e.KeyCode == Keys.D2)
+                    {
+                        navigateToBasePoint = BasePointType.Base_2;
+                    }
+                    else if (e.KeyCode == Keys.D3)
+                    {
+                        navigateToBasePoint = BasePointType.Base_3;
+                    }
+                    else if (e.KeyCode == Keys.D4)
+                    {
+                        navigateToBasePoint = BasePointType.Base_4;
+                    }
+                    else if (e.KeyCode == Keys.A)
+                    {
+                        buoysVisibleBtn_Click(buoysVisibleBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.O)
+                    {
+                        if (settingsBtn.Enabled)
+                            settingsBtn_Click(settingsBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.Add)
+                    {
+                        zoomInBtn_Click(zoomInBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.Subtract)
+                    {
+                        zoomOutBtn_Click(zoomOutBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.I)
+                    {
+                        infoBtn_Click(infoBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
                 }
-                else if (e.KeyCode == Keys.L)
+            }
+            else
+            {
+                if (!e.Control && !e.Shift)
                 {
-                    if (linkBtn.Enabled)
-                        linkBtn_Click(linkBtn, null);
-                    e.SuppressKeyPress = true;
-                }
-                else if (e.KeyCode == Keys.M)
-                {
-                    markPointBtn_Click(markPointBtn, null);
-                    e.SuppressKeyPress = true;
-                }
-                else if (e.KeyCode == Keys.H)
-                {
-                    logViewCurrentBtn_Click(logViewCurrentBtn, EventArgs.Empty);
-                    e.SuppressKeyPress = true;
-                }
-                else if (e.KeyCode == Keys.F)
-                {
-                    followMapBtn_Click(followMapBtn, EventArgs.Empty);
-                    e.SuppressKeyPress = true;
-                }
-                else if (e.KeyCode == Keys.T)
-                {
-                    showTilesBtn_Click(showTilesBtn, EventArgs.Empty);
-                    e.SuppressKeyPress = true;
-                }
-                else if (e.KeyCode == Keys.D1)
-                {
-                    throw new NotImplementedException();
-                }
-                else if (e.KeyCode == Keys.D2)
-                {
-                    throw new NotImplementedException();
-                }
-                else if (e.KeyCode == Keys.D3)
-                {
-                    throw new NotImplementedException();
-                }
-                else if (e.KeyCode == Keys.D4)
-                {
-                    throw new NotImplementedException();
-                }
-                else if (e.KeyCode == Keys.A)
-                {
-                    throw new NotImplementedException();
-                }
-                else if (e.KeyCode == Keys.O)
-                {
-                    if (settingsBtn.Enabled)
-                        settingsBtn_Click(settingsBtn, EventArgs.Empty);
-                    e.SuppressKeyPress = true;
-                }
-                else if (e.KeyCode == Keys.Add)
-                {
-                    zoomInBtn_Click(zoomInBtn, EventArgs.Empty);
-                    e.SuppressKeyPress = true;
-                }
-                else if (e.KeyCode == Keys.Subtract)
-                {
-                    zoomOutBtn_Click(zoomOutBtn, EventArgs.Empty);
-                    e.SuppressKeyPress = true;
+                    if (e.KeyCode == Keys.S)
+                    {
+                        ovrSalinityBtn_Click(ovrSalinityBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
+                    else if (e.KeyCode == Keys.T)
+                    {
+                        ovrWaterTemperatureBtn_Click(ovrWaterTemperatureBtn, EventArgs.Empty);
+                        e.SuppressKeyPress = true;
+                    }
                 }
             }
 
@@ -1521,6 +1729,6 @@ namespace WAYU
 
         #endregion
 
-        #endregion        
+        #endregion
     }
 }

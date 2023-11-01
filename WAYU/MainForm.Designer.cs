@@ -39,6 +39,7 @@ namespace WAYU
             this.logBtn = new System.Windows.Forms.ToolStripDropDownButton();
             this.logViewCurrentBtn = new System.Windows.Forms.ToolStripMenuItem();
             this.logPlaybackBtn = new System.Windows.Forms.ToolStripMenuItem();
+            this.logBuildEmulationDataBtn = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator16 = new System.Windows.Forms.ToolStripSeparator();
             this.logRemoveEmptyEntriesBtn = new System.Windows.Forms.ToolStripMenuItem();
             this.logArchiveAllBtn = new System.Windows.Forms.ToolStripMenuItem();
@@ -174,6 +175,7 @@ namespace WAYU
             this.logBtn.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.logViewCurrentBtn,
             this.logPlaybackBtn,
+            this.logBuildEmulationDataBtn,
             this.toolStripSeparator16,
             this.logRemoveEmptyEntriesBtn,
             this.logArchiveAllBtn,
@@ -192,8 +194,8 @@ namespace WAYU
             // 
             this.logViewCurrentBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.logViewCurrentBtn.Name = "logViewCurrentBtn";
-            this.logViewCurrentBtn.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.H)));
-            this.logViewCurrentBtn.Size = new System.Drawing.Size(367, 36);
+            this.logViewCurrentBtn.ShortcutKeyDisplayString = "Ctrl+H";
+            this.logViewCurrentBtn.Size = new System.Drawing.Size(368, 36);
             this.logViewCurrentBtn.Text = "👁 View current";
             this.logViewCurrentBtn.ToolTipText = "Open current log file in a text editor (Ctrl + H)";
             this.logViewCurrentBtn.Click += new System.EventHandler(this.logViewCurrentBtn_Click);
@@ -202,21 +204,29 @@ namespace WAYU
             // 
             this.logPlaybackBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.logPlaybackBtn.Name = "logPlaybackBtn";
-            this.logPlaybackBtn.Size = new System.Drawing.Size(367, 36);
+            this.logPlaybackBtn.Size = new System.Drawing.Size(368, 36);
             this.logPlaybackBtn.Text = "▶ Playback...";
             this.logPlaybackBtn.ToolTipText = "Select a log file to playback";
             this.logPlaybackBtn.Click += new System.EventHandler(this.logPlaybackBtn_Click);
             // 
+            // logBuildEmulationDataBtn
+            // 
+            this.logBuildEmulationDataBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
+            this.logBuildEmulationDataBtn.Name = "logBuildEmulationDataBtn";
+            this.logBuildEmulationDataBtn.Size = new System.Drawing.Size(368, 36);
+            this.logBuildEmulationDataBtn.Text = "🏗 Build emulation data...";
+            this.logBuildEmulationDataBtn.Click += new System.EventHandler(this.logBuildEmulationDataBtn_Click);
+            // 
             // toolStripSeparator16
             // 
             this.toolStripSeparator16.Name = "toolStripSeparator16";
-            this.toolStripSeparator16.Size = new System.Drawing.Size(364, 6);
+            this.toolStripSeparator16.Size = new System.Drawing.Size(365, 6);
             // 
             // logRemoveEmptyEntriesBtn
             // 
             this.logRemoveEmptyEntriesBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.logRemoveEmptyEntriesBtn.Name = "logRemoveEmptyEntriesBtn";
-            this.logRemoveEmptyEntriesBtn.Size = new System.Drawing.Size(367, 36);
+            this.logRemoveEmptyEntriesBtn.Size = new System.Drawing.Size(368, 36);
             this.logRemoveEmptyEntriesBtn.Text = "🧹 Remove empty entries";
             this.logRemoveEmptyEntriesBtn.ToolTipText = "Remove all log files, smaller than 2 kB";
             this.logRemoveEmptyEntriesBtn.Click += new System.EventHandler(this.logRemoveEmptyEntriesBtn_Click);
@@ -225,7 +235,7 @@ namespace WAYU
             // 
             this.logArchiveAllBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.logArchiveAllBtn.Name = "logArchiveAllBtn";
-            this.logArchiveAllBtn.Size = new System.Drawing.Size(367, 36);
+            this.logArchiveAllBtn.Size = new System.Drawing.Size(368, 36);
             this.logArchiveAllBtn.Text = "🗜 Archive all";
             this.logArchiveAllBtn.ToolTipText = "Archive all log files to an archive";
             this.logArchiveAllBtn.Click += new System.EventHandler(this.logArchiveAllBtn_Click);
@@ -233,13 +243,13 @@ namespace WAYU
             // toolStripSeparator17
             // 
             this.toolStripSeparator17.Name = "toolStripSeparator17";
-            this.toolStripSeparator17.Size = new System.Drawing.Size(364, 6);
+            this.toolStripSeparator17.Size = new System.Drawing.Size(365, 6);
             // 
             // logDeleteAllBtn
             // 
             this.logDeleteAllBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.logDeleteAllBtn.Name = "logDeleteAllBtn";
-            this.logDeleteAllBtn.Size = new System.Drawing.Size(367, 36);
+            this.logDeleteAllBtn.Size = new System.Drawing.Size(368, 36);
             this.logDeleteAllBtn.Text = "🗑 Delete all";
             this.logDeleteAllBtn.ToolTipText = "Delete all log files";
             this.logDeleteAllBtn.Click += new System.EventHandler(this.logDeleteAllBtn_Click);
@@ -248,7 +258,7 @@ namespace WAYU
             // 
             this.logDoThemAllBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.logDoThemAllBtn.Name = "logDoThemAllBtn";
-            this.logDoThemAllBtn.Size = new System.Drawing.Size(367, 36);
+            this.logDoThemAllBtn.Size = new System.Drawing.Size(368, 36);
             this.logDoThemAllBtn.Text = "🧹+🗜+🗑 Do them all";
             this.logDoThemAllBtn.ToolTipText = "Remove empty log files and entries, archive all that\'s left and delete";
             this.logDoThemAllBtn.Click += new System.EventHandler(this.logDoThemAllBtn_Click);
@@ -288,7 +298,7 @@ namespace WAYU
             // 
             this.tracksExportAsBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.tracksExportAsBtn.Name = "tracksExportAsBtn";
-            this.tracksExportAsBtn.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.S)));
+            this.tracksExportAsBtn.ShortcutKeyDisplayString = "Ctrl+S";
             this.tracksExportAsBtn.Size = new System.Drawing.Size(325, 36);
             this.tracksExportAsBtn.Text = "💾 Export as...";
             this.tracksExportAsBtn.ToolTipText = "Export tracks data";
@@ -305,7 +315,7 @@ namespace WAYU
             this.trackImportBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.trackImportBtn.Name = "trackImportBtn";
             this.trackImportBtn.Size = new System.Drawing.Size(325, 36);
-            this.trackImportBtn.Text = "📂Load...";
+            this.trackImportBtn.Text = "📂Import...";
             this.trackImportBtn.Click += new System.EventHandler(this.trackImportBtn_Click);
             // 
             // tracksClearAllBtn
@@ -334,15 +344,19 @@ namespace WAYU
             // 
             // ovrSalinityBtn
             // 
+            this.ovrSalinityBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.ovrSalinityBtn.Name = "ovrSalinityBtn";
-            this.ovrSalinityBtn.Size = new System.Drawing.Size(372, 36);
+            this.ovrSalinityBtn.ShortcutKeyDisplayString = "Alt+S";
+            this.ovrSalinityBtn.Size = new System.Drawing.Size(391, 36);
             this.ovrSalinityBtn.Text = "🧂 Water salinity";
             this.ovrSalinityBtn.Click += new System.EventHandler(this.ovrSalinityBtn_Click);
             // 
             // ovrWaterTemperatureBtn
             // 
+            this.ovrWaterTemperatureBtn.Font = new System.Drawing.Font("Segoe UI", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.ovrWaterTemperatureBtn.Name = "ovrWaterTemperatureBtn";
-            this.ovrWaterTemperatureBtn.Size = new System.Drawing.Size(372, 36);
+            this.ovrWaterTemperatureBtn.ShortcutKeyDisplayString = "Alt+T";
+            this.ovrWaterTemperatureBtn.Size = new System.Drawing.Size(391, 36);
             this.ovrWaterTemperatureBtn.Text = "🌡 Water temperature";
             this.ovrWaterTemperatureBtn.Click += new System.EventHandler(this.ovrWaterTemperatureBtn_Click);
             // 
@@ -350,8 +364,9 @@ namespace WAYU
             // 
             this.ovrAtmosphericPressureBtn.Enabled = false;
             this.ovrAtmosphericPressureBtn.Name = "ovrAtmosphericPressureBtn";
-            this.ovrAtmosphericPressureBtn.Size = new System.Drawing.Size(372, 36);
+            this.ovrAtmosphericPressureBtn.Size = new System.Drawing.Size(391, 36);
             this.ovrAtmosphericPressureBtn.Text = "☁ Atmospheric pressure";
+            this.ovrAtmosphericPressureBtn.Visible = false;
             // 
             // toolStripSeparator4
             // 
@@ -368,7 +383,7 @@ namespace WAYU
             this.infoBtn.Name = "infoBtn";
             this.infoBtn.Size = new System.Drawing.Size(111, 35);
             this.infoBtn.Text = "ℹ INFO";
-            this.infoBtn.ToolTipText = "Additional information";
+            this.infoBtn.ToolTipText = "Additional information (Ctrl + I)";
             this.infoBtn.Click += new System.EventHandler(this.infoBtn_Click);
             // 
             // secondaryToolStrip
@@ -728,7 +743,7 @@ namespace WAYU
             this.autoscreenshotsBtn.Name = "autoscreenshotsBtn";
             this.autoscreenshotsBtn.Size = new System.Drawing.Size(43, 32);
             this.autoscreenshotsBtn.Text = "🎞";
-            this.autoscreenshotsBtn.ToolTipText = "Start/Stop autoscreenshots";
+            this.autoscreenshotsBtn.ToolTipText = "Start/Stop autosaving screenshots every 1 second";
             this.autoscreenshotsBtn.Click += new System.EventHandler(this.autoscreenshotsBtn_Click);
             // 
             // bottomSecondaryToolStrip
@@ -975,6 +990,7 @@ namespace WAYU
         private System.Windows.Forms.ToolStripButton zoomInBtn;
         private System.Windows.Forms.ToolStripButton zoomOutBtn;
         private System.Windows.Forms.ToolStripButton autoscreenshotsBtn;
+        private System.Windows.Forms.ToolStripMenuItem logBuildEmulationDataBtn;
     }
 }
 
