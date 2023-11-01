@@ -79,6 +79,11 @@ namespace WAYU.APL
         DateTime stateUpdateTS;
         int outputCnt = 0;
 
+        List<DateTime> fixTSs;
+        double minFixDelay = double.MaxValue;
+        double maxFixDelay = double.MinValue;
+        double meanFixDelay = 0;
+
         #region Public        
 
         public bool LocationPresent
@@ -315,6 +320,8 @@ namespace WAYU.APL
 
             #region pcore & relative items
 
+            fixTSs = new List<DateTime>();
+
             sFilter = new TrackFilter(sFilterFIFOSize, sFilterRangeThreshold_m);
             dFilter = new DHFilter(dFilterFIFOSize, dFilterMaxSpeed_mps, dFilterRangeThreshold_m);
 
@@ -337,6 +344,8 @@ namespace WAYU.APL
                     new TrackPointEventArgs(APL.WAYURawLocationTrackID, e.Location.Latitude, e.Location.Longitude, e.Location.Depth, e.TimeStamp));
 
                 tFixTime = e.TimeStamp;
+
+                ProcessFixTime(e.TimeStamp);
 
                 tLatRaw.Value = e.Location.Latitude;
                 tLonRaw.Value = e.Location.Longitude;
@@ -444,7 +453,7 @@ namespace WAYU.APL
 
             #region statHelper
 
-            statHelper = new StatHelper(128);
+            statHelper = new StatHelper(4096);
             statHelper.IsActiveChanged += (o, e) => StatHelperActiveChanged.Rise(this, EventArgs.Empty);
             statHelper.IsAutoStop = true;
 
@@ -479,6 +488,33 @@ namespace WAYU.APL
         #region Methods
 
         #region Public
+
+        public bool JustParseEmuLine(string s, out BaseIDs bID, out double bLat, out double bLon, out double bDpt, out double bBat, out double bTOA)
+        {
+            bID = BaseIDs.Invalid;
+            bLat = double.NaN;
+            bLon = double.NaN;
+            bDpt = double.NaN;
+            bBat = double.NaN;
+            bTOA = double.NaN;
+
+            var splits = s.Split(llSeparators, StringSplitOptions.RemoveEmptyEntries);
+            if (splits.Length == 3)
+            {
+                if (splits[1] == "(WAYU_GIBs)")
+                {
+                    var nstr = splits[2];
+                    if (!nstr.EndsWith(NMEAParser.SentenceEndDelimiter))
+                        nstr += NMEAParser.SentenceEndDelimiter;
+
+                    return aplPort.JustParseAPLA(nstr, out bID, out bLat, out bLon, out bDpt, out bBat, out bTOA);
+                }
+                else
+                    return false;
+            }
+            else
+                return false;
+        }
 
         public GeoPoint GetLocation()
         {
@@ -522,6 +558,14 @@ namespace WAYU.APL
             return new GeoPoint(lat, lon);
         }
 
+        public string GetDelayStatistics()
+        {
+            if (fixTSs.Count < 2) return string.Empty;
+            else
+                return string.Format(CultureInfo.InvariantCulture,
+                    "\r\nFDL:\r\n MIN: {0:F01} sec\r\n MAX: {1:F01} sec\r\n MEA: {2:F01} sec\r\n CNT: {3}\r\n",
+                    minFixDelay, maxFixDelay, meanFixDelay, fixTSs.Count);
+        }
 
 
         public void Start()
@@ -530,7 +574,13 @@ namespace WAYU.APL
                 auxGNSSPort.Stop();
 
             if (!aplPort.IsActive)
-                aplPort.Start();            
+            {
+                aplPort.Start();
+                fixTSs = new List<DateTime>();
+                maxFixDelay = double.MinValue;
+                minFixDelay = double.MaxValue;
+                meanFixDelay = 0;
+            }
         }
 
         public void Stop()
@@ -763,6 +813,38 @@ namespace WAYU.APL
         #endregion
 
         #region Private
+
+        private void ProcessFixTime(DateTime ts)
+        {
+            fixTSs.Add(ts);
+
+            if (fixTSs.Count > 0)
+            {
+                double mnDelay = 0;
+                for (int i = 1; i < fixTSs.Count; i++)
+                {
+                    var delay = fixTSs[i].Subtract(fixTSs[i - 1]).TotalSeconds;
+                    mnDelay += delay;
+
+                    if (minFixDelay > delay)
+                        minFixDelay = delay;
+
+                    if (maxFixDelay < delay)
+                        maxFixDelay = delay;
+
+                    //
+                    if (delay < 40)
+                    {
+                        //
+                        meanFixDelay += delay;
+                        //
+                    }
+                    //
+                }
+
+                meanFixDelay /= fixTSs.Count;
+            }
+        }
 
         private void ForceStateUpdate()
         {

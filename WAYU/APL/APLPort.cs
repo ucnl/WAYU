@@ -67,6 +67,47 @@ namespace WAYU.APL
 
         #region Methods
 
+        public bool JustParseAPLA(string s, out BaseIDs bID, out double bLat, out double bLon, out double bDpt, out double bBat, out double bTOA)
+        {
+            bool result = false;
+
+            bID = BaseIDs.Invalid;
+            bLat = double.NaN;
+            bLon = double.NaN;
+            bDpt = double.NaN;
+            bBat = double.NaN;
+            bTOA = double.NaN;
+
+            try
+            {
+                var nres = NMEAParser.Parse(s);
+                if (nres is NMEAProprietarySentence)
+                {
+                    var pres = (NMEAProprietarySentence)(nres);
+                    if ((pres.Manufacturer == ManufacturerCodes.APL) &&
+                        (pres.SentenceIDString == "A"))
+                    {
+                        bID = APL.O2BaseID(pres.parameters[0]);
+                        bLat = APL.O2D(pres.parameters[1]);
+                        bLon = APL.O2D(pres.parameters[2]);
+                        bDpt = APL.O2D(pres.parameters[3]);
+                        bBat = APL.O2D(pres.parameters[4]);
+                        bTOA = APL.O2D(pres.parameters[5]);
+                        result = true;
+                    }
+
+                }
+
+            }
+            catch
+            {
+
+            }
+
+            return result;
+        }
+
+
         private void OnAPLA(object[] parameters)
         {
             // Incoming APLA sentence received
