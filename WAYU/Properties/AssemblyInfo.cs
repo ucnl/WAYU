@@ -24,7 +24,7 @@ using System.Runtime.InteropServices;
                                "https://github.com/ucnl/uOSM\n\n" +
                                "Hot keys:\n" +
                                "Ctrl + L: Open/Close connection\n" +
-                               "Ctrl + A: Show all tracks/WAYU pinger only\n" +
+                               "Ctrl + A: Show/Hide buoys\n" +
                                "Ctrl + M: Mark current location\n" +
                                "Ctrl + P: Save a screenshot\n" +
                                "Ctrl + S: Save tracks as...\n" +
@@ -37,7 +37,8 @@ using System.Runtime.InteropServices;
                                "Ctrl + 1: Set Base 1 as reference point\n" +
                                "Ctrl + 2: Set Base 2 as reference point\n" +
                                "Ctrl + 3: Set Base 3 as reference point\n" +
-                               "Ctrl + 4: Set Base 4 as reference point\n"
+                               "Ctrl + 4: Set Base 4 as reference point\n" +
+                               "Ctrl + I: Show information"
                                )]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Underwater communication & navigation laboratory, LLC")]
